@@ -7,7 +7,8 @@ type PowerUp = {
 
 export async function getPowerUps(): Promise<PowerUp[]> {
   try {
-    throw new Error("Power-ups not yet implemented.");
+    // Replace with Supabase call when available
+    throw new Error("Power-ups table not implemented yet");
   } catch {
     return fallbackPowerUps();
   }

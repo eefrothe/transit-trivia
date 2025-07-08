@@ -5,7 +5,7 @@ import QuestionCard from './components/QuestionCard';
 import GameOver from './components/GameOver';
 import StartScreen from './components/StartScreen';
 import { Question } from './types';
-import { generateQuestionBatch, generateTheme } from '../transit-trivia/services/geminiService';
+import { generateQuestionBatch, generateTheme } from './services/geminiService';
 
 function App() {
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
