@@ -5,9 +5,7 @@ import QuestionCard from './components/QuestionCard';
 import GameOver from './components/GameOver';
 import StartScreen from './components/StartScreen';
 import { Question } from './types';
-import { generateTheme } from './services/geminiService';
 import { generateQuestionBatch, generateTheme } from './services/geminiService';
-
 
 function App() {
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
@@ -19,48 +17,46 @@ function App() {
   const [error, setError] = useState<string | null>(null);
 
   const initializeGame = useCallback(async () => {
-  setIsLoading(true);
-  setError(null);
-  try {
-    const gameTheme = await generateTheme();
-    setTheme(gameTheme);
+    setIsLoading(true);
+    setError(null);
+    try {
+      const gameTheme = await generateTheme();
+      setTheme(gameTheme);
 
-    let questions: Question[] = [];
+      let questions: Question[] = [];
 
-    // Step 1: Try Supabase
-    const { data: supabaseData, error: supabaseError } = await supabase
-      .from('questions')
-      .select('*')
-      .limit(15)
-      .order('id', { ascending: false });
+      const { data: supabaseData, error: supabaseError } = await supabase
+        .from('questions')
+        .select('*')
+        .limit(15)
+        .order('id', { ascending: false });
 
-    if (supabaseError) {
-      console.warn("Supabase error:", supabaseError.message);
+      if (supabaseError) {
+        console.warn("Supabase error:", supabaseError.message);
+      }
+
+      if (supabaseData && supabaseData.length > 0) {
+        questions = supabaseData;
+      } else {
+        console.log("Falling back to Gemini AI...");
+        questions = await generateQuestionBatch(gameTheme, 15);
+      }
+
+      if (questions.length === 0) {
+        throw new Error('No questions available from Supabase or Gemini.');
+      }
+
+      setCurrentQuestion(questions[0]);
+      setQuestionQueue(questions.slice(1));
+      setScore(0);
+      setIsGameOver(false);
+    } catch (err) {
+      console.error(err);
+      setError('Failed to start the game. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
-
-    if (supabaseData && supabaseData.length > 0) {
-      questions = supabaseData;
-    } else {
-      // Step 2: Fallback to Gemini AI
-      console.log("Falling back to Gemini AI...");
-      questions = await generateQuestionBatch(gameTheme, 15);
-    }
-
-    if (questions.length === 0) {
-      throw new Error('No questions available from Supabase or Gemini.');
-    }
-
-    setCurrentQuestion(questions[0]);
-    setQuestionQueue(questions.slice(1));
-    setScore(0);
-    setIsGameOver(false);
-  } catch (err) {
-    console.error(err);
-    setError('Failed to start the game. Please try again.');
-  } finally {
-    setIsLoading(false);
-  }
-}, []);
+  }, []);
 
   useEffect(() => {
     initializeGame();

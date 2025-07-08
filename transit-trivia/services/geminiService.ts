@@ -1,6 +1,26 @@
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { TriviaQuestion } from '../types';
 import { VISUAL_QUESTION_CHANCE } from '../constants';
+import { Question } from '../types';
+
+export async function generateTheme(): Promise<string> {
+  // In a real app, you'd use Gemini API here
+  return 'Transit & Travel';
+}
+
+export async function generateQuestionBatch(theme: string, count: number): Promise<Question[]> {
+  // Fallback fake questions
+  const sampleQuestions: Question[] = Array.from({ length: count }, (_, i) => ({
+    id: i + 1000,
+    question: `What is question ${i + 1} about ${theme}?`,
+    correct_answer: 'Correct',
+    incorrect_answers: ['Wrong A', 'Wrong B', 'Wrong C'],
+    theme,
+  }));
+  return sampleQuestions;
+}
+
+
 
 if (!process.env.API_KEY) {
   throw new Error("API_KEY environment variable not set");

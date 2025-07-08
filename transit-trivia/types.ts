@@ -45,3 +45,11 @@ export interface PlayerStats {
 export interface AllPlayerStats {
   [playerId: string]: PlayerStats;
 }
+
+export type Question = {
+  id: number;
+  question: string;
+  correct_answer: string;
+  incorrect_answers: string[];
+  theme?: string;
+};
