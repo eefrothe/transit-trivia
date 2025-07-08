@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Player, TriviaQuestion } from '../types';
+import { Player, TriviaQuestion } from '../../src/types';
 import { generateNewQuestion } from '../services/geminiService';
 import Spinner from './Spinner';
 import { XIcon } from './icons';

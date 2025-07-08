@@ -1,4 +1,4 @@
-import { Player } from './types';
+import { Player } from '../src/types';
 
 export const TRANSIT_LOCATIONS = [
   { emoji: '🚉', label: 'Station' },

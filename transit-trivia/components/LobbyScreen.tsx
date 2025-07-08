@@ -1,5 +1,5 @@
 import React from 'react';
-import { Player, AllPlayerStats } from '../types';
+import { Player, AllPlayerStats } from '../../src/types';
 import PlayerAvatar from './PlayerAvatar';
 import Spinner from './Spinner';
 import { ShareIcon, BrainIcon } from './icons';

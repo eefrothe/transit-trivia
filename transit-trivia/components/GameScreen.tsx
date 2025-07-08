@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Player, AllPlayerStats, TriviaQuestion, PowerUpType } from '../types';
+import { Player, AllPlayerStats, TriviaQuestion, PowerUpType } from '../../src/types';
 import { POST_ANSWER_DELAY_MS } from '../constants';
 import PlayerAvatar from './PlayerAvatar';
 import Spinner from './Spinner';

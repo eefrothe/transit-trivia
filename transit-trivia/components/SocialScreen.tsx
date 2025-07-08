@@ -1,6 +1,6 @@
 import React from 'react';
 import { BOT_NAMES, BOT_COLORS } from '../constants';
-import { Player } from '../types';
+import { Player } from '../../src/types';
 
 interface SocialScreenProps {
   onCreateGame: () => void;

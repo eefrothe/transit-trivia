@@ -1,7 +1,7 @@
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
-import { TriviaQuestion } from '../types';
+import { TriviaQuestion } from '../../src/types';
 import { VISUAL_QUESTION_CHANCE } from '../constants';
-import { Question } from '../types';
+import { Question } from '../../src/types';
 
 export async function generateTheme(): Promise<string> {
   // In a real app, you'd use Gemini API here

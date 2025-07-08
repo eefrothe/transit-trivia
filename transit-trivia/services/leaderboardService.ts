@@ -1,4 +1,4 @@
-import { supabase } from '../supabaseClient';
+import { supabase } from '../../src/supabaseClient';
 
 type LeaderboardEntry = {
   username: string;

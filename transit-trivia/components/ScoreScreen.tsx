@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Player, AllPlayerStats } from '../types';
+import { Player, AllPlayerStats } from '../../src/types';
 import PlayerAvatar from './PlayerAvatar';
 import { CrownIcon, ShareIcon } from './icons';
 import { APP_URL } from '../constants';
