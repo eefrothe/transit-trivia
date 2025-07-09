@@ -1,189 +1,170 @@
+import axios from 'axios';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { TriviaQuestion } from '../types';
 import { VISUAL_QUESTION_CHANCE } from '../constants';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY as string);
-const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-preview-04-17' });
+const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
 
+const STABLE_DIFFUSION_URL = 'https://api.stability.ai/v1/generation/stable-diffusion-v1-5/text-to-image';
+const STABLE_DIFFUSION_API_KEY = process.env.STABILITY_API_KEY as string;
+
+// === JSON Instructions ===
+const JSON_PROMPT = `
+Respond ONLY with a valid JSON object:
+{
+  "category": "string",
+  "question": "string",
+  "options": ["string", "string", "string", "string"],
+  "correctAnswer": "string"
+}
+`;
+
+// === Theme Generation ===
 export const generateTheme = async (): Promise<string> => {
   try {
-    const result = await model.generateContent([
-      'Generate a single, fun, and interesting trivia theme. Examples: "80s Action Movies", "Deep Sea Mysteries", "Ancient Roman History". Respond with only the theme name, no extra text or quotes.'
-    ]);
-    const text = await result.response.text();
-    return text.trim();
-  } catch (error) {
-    console.error('Failed to generate theme:', error);
+    const result = await model.generateContent(`Give a fun trivia theme like "80s Cartoons", "Space Mysteries", or "Mythical Creatures". Only return the theme, no extra text.`);
+    return result.response.text().trim();
+  } catch (e) {
+    console.error('Theme generation error:', e);
     return 'General Knowledge';
   }
 };
 
+// === Question Batch ===
 export const generateQuestionBatch = async (theme: string, count: number): Promise<TriviaQuestion[]> => {
-  const prompt = `Generate a batch of ${count} unique, text-only trivia questions of normal difficulty. The theme is "${theme}".\n${JSON_ARRAY_PROMPT_INSTRUCTIONS}`;
+  const prompt = `Generate ${count} trivia questions on "${theme}". Each question must follow:\n${JSON_PROMPT}`;
 
   try {
-    const result = await model.generateContent([prompt]);
-    const text = await result.response.text();
-    const batchData = parseAndValidateQuestionBatch(text);
-
-    if (!batchData || batchData.length === 0) {
-      throw new Error('Failed to generate a valid batch of questions from the API.');
-    }
-
-    return batchData.map(q => ({
-      ...q,
-      options: [...q.options].sort(() => Math.random() - 0.5),
-      questionType: 'text',
-    }));
-  } catch (error) {
-    console.error('Error generating question batch:', error);
-    const fallbackQuestion = await generateNewQuestion(theme, [], 'normal');
-    return [fallbackQuestion];
+    const result = await model.generateContent(prompt);
+    const cleanJson = cleanAndParseArray(result.response.text());
+    return cleanJson || [];
+  } catch (e) {
+    console.error('Batch generation failed, falling back to single question:', e);
+    const single = await generateNewQuestion(theme, [], 'normal');
+    return [single];
   }
 };
 
-export const generateNewQuestion = async (theme: string, askedQuestions: string[], difficulty: 'normal' | 'hard'): Promise<TriviaQuestion> => {
-  const isVisual = Math.random() < VISUAL_QUESTION_CHANCE && difficulty === 'normal';
+// === New Single Question ===
+export const generateNewQuestion = async (
+  theme: string,
+  askedQuestions: string[],
+  difficulty: 'normal' | 'hard'
+): Promise<TriviaQuestion> => {
+  const useVisual = Math.random() < VISUAL_QUESTION_CHANCE && difficulty === 'normal';
 
   try {
-    let questionData: TriviaQuestion | null = null;
+    if (useVisual) {
+      const subjectPrompt = `Suggest a highly visual noun for "${theme}". Respond only with the noun.`;
+      const subjectResult = await model.generateContent(subjectPrompt);
+      const subject = subjectResult.response.text().trim();
 
-    if (isVisual) {
-      const subjectModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-preview-04-17' });
-      const subjectResult = await subjectModel.generateContent([
-        `Give me a single, specific, well-known noun (a person, place, or thing) that fits the trivia theme "${theme}". The noun should be visually distinct. Respond with only the noun.`
-      ]);
-      const subject = (await subjectResult.response.text()).trim();
+      const imageUrl = await generateStableDiffusionImage(subject);
+      const questionPrompt = `Using the subject "${subject}", generate a trivia question (theme: "${theme}"). Avoid duplicates: [${askedQuestions.join(',')}]\n${JSON_PROMPT}`;
 
-      const imageModel = genAI.getGenerativeModel({ model: 'imagen-3.0-generate-002' });
-      const imageResult = await imageModel.generateContent([
-        `A clear, high-quality, photorealistic image of: ${subject}.`
-      ]);
+      const result = await model.generateContent(questionPrompt);
+      const parsed = cleanAndParse(result.response.text());
 
-      const base64Image = imageResult.response.parts?.[0]?.inlineData?.data;
-
-      if (base64Image) {
-        const imagePart = { inlineData: { mimeType: 'image/jpeg', data: base64Image } };
-        const questionPromptContents = [
-          { text: `Based on the provided image, generate a trivia question whose correct answer is "${subject}". The general theme is "${theme}".\nDo not ask a question that is on this list: [${askedQuestions.join(', ')}].\n${JSON_PROMPT_INSTRUCTIONS}` },
-          imagePart,
-        ];
-
-        const questionResult = await model.generateContent({ parts: questionPromptContents });
-        const questionText = await questionResult.response.text();
-        questionData = parseAndValidateQuestion(questionText);
-
-        if (questionData) {
-          questionData.questionType = 'visual';
-          questionData.imageUrl = `data:image/jpeg;base64,${base64Image}`;
-        }
+      if (parsed) {
+        return {
+          ...parsed,
+          options: shuffleArray(parsed.options),
+          questionType: 'visual',
+          imageUrl,
+        };
       }
     }
 
-    if (!questionData) {
-      const prompt = `${difficulty === 'hard' ? 'Generate a VERY HARD trivia question.' : 'Generate a trivia question of normal difficulty.'} The theme is "${theme}".\nDo not ask a question that is on this list: [${askedQuestions.join(', ')}].\n${JSON_PROMPT_INSTRUCTIONS}`;
-      const result = await model.generateContent([prompt]);
-      const text = await result.response.text();
-      questionData = parseAndValidateQuestion(text);
-      if (questionData) {
-        questionData.questionType = 'text';
-      }
+    // fallback: text question
+    const difficultyMsg = difficulty === 'hard' ? 'Generate a VERY HARD question' : 'Generate a normal question';
+    const prompt = `${difficultyMsg} for theme "${theme}". Avoid: [${askedQuestions.join(',')}]\n${JSON_PROMPT}`;
+    const result = await model.generateContent(prompt);
+    const parsed = cleanAndParse(result.response.text());
+
+    if (parsed) {
+      return {
+        ...parsed,
+        options: shuffleArray(parsed.options),
+        questionType: 'text',
+      };
     }
 
-    if (!questionData) {
-      throw new Error('Failed to generate a valid question from the API.');
-    }
-
-    return {
-      ...questionData,
-      options: [...questionData.options].sort(() => Math.random() - 0.5),
-    };
-  } catch (error) {
-    console.error('Error generating trivia question:', error);
-    throw new Error('Failed to communicate with the Gemini API or parse its response.');
+    throw new Error('Failed to parse Gemini response');
+  } catch (e) {
+    console.error('Error generating question:', e);
+    throw new Error('Could not generate a trivia question.');
   }
 };
 
-const JSON_PROMPT_INSTRUCTIONS = `
-Respond ONLY with a valid, parseable JSON object adhering strictly to this format:
-{
-  "category": "string",
-  "question": "string",
-  "options": ["string", "string", "string", "string"],
-  "correctAnswer": "string"
-}
-
-Key rules:
-- Response must only include the JSON object (no text or markdown fences).
-- The 'options' array must contain exactly 4 string elements.
-- 'correctAnswer' must exactly match one of the 'options'.
-- No trailing commas.
-`;
-
-const JSON_ARRAY_PROMPT_INSTRUCTIONS = `
-Respond ONLY with a valid, parseable JSON array of objects, where each object adheres strictly to this format:
-{
-  "category": "string",
-  "question": "string",
-  "options": ["string", "string", "string", "string"],
-  "correctAnswer": "string"
-}
-
-Key rules:
-- Response must only include the JSON array (no text or markdown fences).
-- Each 'options' array must contain exactly 4 strings.
-- 'correctAnswer' must exactly match one of the options.
-- No trailing commas.
-`;
-
-const parseAndValidateQuestion = (jsonStr: string): TriviaQuestion | null => {
-  let clean = jsonStr.trim().replace(/^```\w*\n?|```$/g, '');
-  const firstBrace = clean.indexOf('{');
-  const lastBrace = clean.lastIndexOf('}');
-  clean = clean.slice(firstBrace, lastBrace + 1).replace(/,\s*([}\]])/g, '$1');
-
+// === Image Generation (Stable Diffusion) ===
+const generateStableDiffusionImage = async (prompt: string): Promise<string> => {
   try {
-    const parsed = JSON.parse(clean);
+    const response = await axios.post(
+      STABLE_DIFFUSION_URL,
+      {
+        text_prompts: [{ text: prompt }],
+        cfg_scale: 7,
+        height: 512,
+        width: 512,
+        samples: 1,
+        steps: 30,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${STABLE_DIFFUSION_API_KEY}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+      }
+    );
+
+    const base64Image = response.data.artifacts?.[0]?.base64;
+    return `data:image/png;base64,${base64Image}`;
+  } catch (error) {
+    console.error('Image generation failed:', error);
+    return '';
+  }
+};
+
+// === Utility Functions ===
+const cleanAndParse = (raw: string): TriviaQuestion | null => {
+  try {
+    const cleaned = raw.replace(/```(json)?/g, '').trim();
+    const json = JSON.parse(cleaned);
     if (
-      parsed.category &&
-      parsed.question &&
-      Array.isArray(parsed.options) &&
-      parsed.options.length === 4 &&
-      parsed.correctAnswer &&
-      parsed.options.includes(parsed.correctAnswer)
+      json &&
+      typeof json.category === 'string' &&
+      typeof json.question === 'string' &&
+      Array.isArray(json.options) &&
+      json.options.length === 4 &&
+      json.options.includes(json.correctAnswer)
     ) {
-      return parsed as TriviaQuestion;
+      return json as TriviaQuestion;
     }
-    return null;
-  } catch {
-    return null;
+  } catch (e) {
+    console.error('Parsing error:', e);
   }
+  return null;
 };
 
-const parseAndValidateQuestionBatch = (jsonStr: string): TriviaQuestion[] | null => {
-  let clean = jsonStr.trim().replace(/^```\w*\n?|```$/g, '');
-  const firstBracket = clean.indexOf('[');
-  const lastBracket = clean.lastIndexOf(']');
-  if (firstBracket === -1 || lastBracket <= firstBracket) return null;
-  clean = clean.slice(firstBracket, lastBracket + 1).replace(/,\s*([}\]])/g, '$1');
-
+const cleanAndParseArray = (raw: string): TriviaQuestion[] | null => {
   try {
-    const parsed = JSON.parse(clean);
-    if (!Array.isArray(parsed)) return null;
-    const valid = parsed.filter(q =>
+    const cleaned = raw.replace(/```(json)?/g, '').trim();
+    const array = JSON.parse(cleaned);
+    if (!Array.isArray(array)) return null;
+
+    return array.filter(q =>
       q.category &&
       q.question &&
       Array.isArray(q.options) &&
       q.options.length === 4 &&
-      q.correctAnswer &&
       q.options.includes(q.correctAnswer)
     );
-    return valid.length > 0 ? (valid as TriviaQuestion[]) : null;
-  } catch {
+  } catch (e) {
+    console.error('Batch parse error:', e);
     return null;
   }
 };
 
-if (!process.env.GEMINI_API_KEY) {
-  throw new Error('GEMINI_API_KEY environment variable not set');
-}
+const shuffleArray = <T>(array: T[]): T[] => [...array].sort(() => Math.random() - 0.5);
