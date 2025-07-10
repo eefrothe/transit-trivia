@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import './App.css';
-import { supabase } from './supabaseClient';
+import { supabase } from './lib/supabaseClient';
 import QuestionCard from './components/QuestionCard';
 import GameOver from './components/GameOver';
 import StartScreen from './components/StartScreen';
