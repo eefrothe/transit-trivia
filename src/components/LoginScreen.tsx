@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { supabase } from '@/lib/supabaseClient';
+import { signInWithEmail, signInWithGoogle } from '@/services/authService';
 
 interface LoginScreenProps {
   onLogin: (email: string) => void;
@@ -14,30 +14,31 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onSignupClick }) => 
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError(null);
+    setLoading(true);
 
-    const { error, data } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (error) {
-      setError(error.message);
-    } else if (data.user) {
-      onLogin(email);
+    try {
+      const data = await signInWithEmail(email, password);
+      if (data?.user) {
+        onLogin(email);
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   const handleGoogleLogin = async () => {
+    setError(null);
     setLoading(true);
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-    });
-    if (error) setError(error.message);
-    setLoading(false);
+
+    try {
+      await signInWithGoogle(); // Redirects user
+    } catch (err: any) {
+      setError(err.message);
+      setLoading(false);
+    }
   };
 
   return (
@@ -45,7 +46,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onSignupClick }) => 
       <h1 className="text-4xl font-extrabold mb-2 text-cyan-400">Welcome Back!</h1>
       <p className="text-slate-300 text-lg mb-8">Login to access your profile.</p>
 
-      {error && <div className="text-red-400 mb-4">{error}</div>}
+      {error && <div className="text-red-400 mb-4 text-center">{error}</div>}
 
       <form onSubmit={handleEmailLogin} className="w-full max-w-sm">
         <div className="mb-4">
@@ -76,8 +77,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onSignupClick }) => 
 
         <button
           type="submit"
-          className="w-full bg-cyan-500 text-white font-bold py-3 px-6 rounded-lg text-xl hover:bg-cyan-400"
           disabled={loading}
+          className="w-full bg-cyan-500 text-white font-bold py-3 px-6 rounded-lg text-xl hover:bg-cyan-400 transition-all disabled:bg-slate-700 disabled:cursor-not-allowed"
         >
           {loading ? 'Logging in...' : 'Login with Email'}
         </button>
@@ -87,14 +88,14 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onSignupClick }) => 
 
       <button
         onClick={handleGoogleLogin}
-        className="w-full max-w-sm bg-white text-slate-800 font-bold py-3 px-6 rounded-lg text-xl hover:bg-gray-100 shadow"
         disabled={loading}
+        className="w-full max-w-sm bg-white text-slate-800 font-bold py-3 px-6 rounded-lg text-xl hover:bg-gray-100 shadow disabled:opacity-70 disabled:cursor-not-allowed"
       >
         {loading ? 'Redirecting...' : 'Sign in with Google'}
       </button>
 
       <p className="mt-6 text-slate-400">
-        Don't have an account?{' '}
+        Don’t have an account?{' '}
         <button onClick={onSignupClick} className="font-semibold text-cyan-400 hover:text-cyan-300">
           Sign Up
         </button>
