@@ -3,26 +3,22 @@ import './App.css';
 import { supabase } from './lib/supabaseClient';
 import GameScreen from './components/GameScreen';
 import AuthScreen from './components/AuthScreen';
-import { useGameSounds } from './hooks/useGameSounds';
+import StartScreen from './components/StartScreen';
+import VolumeControl from './components/VolumeControl';
 
 function App() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const {
-    playClick,
-    playBgMusic,
-    stopBgMusic,
-    toggleMute,
-    muted,
-  } = useGameSounds();
+  const [gameStarted, setGameStarted] = useState(false);
 
-  // Auth logic
   useEffect(() => {
+    // Initial session check
     supabase.auth.getSession().then(({ data }) => {
       setUser(data.session?.user ?? null);
       setLoading(false);
     });
 
+    // Auth state listener
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
     });
@@ -32,19 +28,9 @@ function App() {
     };
   }, []);
 
-  // Background music based on user login
-  useEffect(() => {
-    if (user) {
-      playBgMusic();
-    } else {
-      stopBgMusic();
-    }
-  }, [user]);
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    playClick();
+  const handleLogout = () => {
     setUser(null);
+    setGameStarted(false); // Reset to start screen
   };
 
   if (loading) {
@@ -55,22 +41,18 @@ function App() {
     );
   }
 
-  return (
-    <div className="relative h-screen w-screen bg-gray-900 text-white">
-      <button
-        onClick={toggleMute}
-        className="absolute top-4 right-4 text-2xl z-50"
-        title="Toggle sound"
-      >
-        {muted ? '🔇' : '🔊'}
-      </button>
+  if (!user) return <AuthScreen />;
 
-      {user ? (
+  return (
+    <>
+      {/* Only show sound control on Start or Game */}
+      {(gameStarted || !gameStarted) && <VolumeControl />}
+      {gameStarted ? (
         <GameScreen user={user} onLogout={handleLogout} />
       ) : (
-        <AuthScreen />
+        <StartScreen onStart={() => setGameStarted(true)} />
       )}
-    </div>
+    </>
   );
 }
 
