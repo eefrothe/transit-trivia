@@ -1,26 +1,26 @@
 import { useEffect, useState } from 'react';
-import './App.css';
 import { supabase } from './lib/supabaseClient';
-import GameScreen from './components/GameScreen';
 import AuthScreen from './components/AuthScreen';
 import StartScreen from './components/StartScreen';
+import GameScreen from './components/GameScreen';  
 import VolumeControl from './components/VolumeControl';
 
 function App() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [gameStarted, setGameStarted] = useState(false);
+  const [showStartScreen, setShowStartScreen] = useState(false);
 
   useEffect(() => {
-    // Initial session check
     supabase.auth.getSession().then(({ data }) => {
       setUser(data.session?.user ?? null);
+      setShowStartScreen(!!data.session?.user);
       setLoading(false);
     });
 
-    // Auth state listener
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+      setShowStartScreen(!!currentUser);
     });
 
     return () => {
@@ -28,9 +28,10 @@ function App() {
     };
   }, []);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     setUser(null);
-    setGameStarted(false); // Reset to start screen
+    setShowStartScreen(false);
   };
 
   if (loading) {
@@ -41,16 +42,19 @@ function App() {
     );
   }
 
-  if (!user) return <AuthScreen />;
-
   return (
     <>
-      {/* Only show sound control on Start or Game */}
-      {(gameStarted || !gameStarted) && <VolumeControl />}
-      {gameStarted ? (
-        <GameScreen user={user} onLogout={handleLogout} />
+      {!user ? (
+        <AuthScreen />
+      ) : showStartScreen ? (
+        <StartScreen onStart={() => setShowStartScreen(false)} />
       ) : (
-        <StartScreen onStart={() => setGameStarted(true)} />
+        <>
+          <GameScreen user={user} onLogout={handleLogout} />
+          <div className="fixed bottom-4 right-4">
+            <VolumeControl />
+          </div>
+        </>
       )}
     </>
   );

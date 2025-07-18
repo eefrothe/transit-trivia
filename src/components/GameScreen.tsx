@@ -1,12 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { TriviaQuestion } from '../types';
 import { POST_ANSWER_DELAY_MS } from '../constants';
-import PlayerAvatar from './PlayerAvatar';
-import Spinner from './Spinner';
+import useGameSounds from '../hooks/useGameSounds';
 import { CheckIcon, XIcon } from './icons';
 import AuthScreen from './AuthScreen';
-import { useGameSounds } from '../hooks/useGameSounds';
 
 interface GameScreenProps {
   user: any;
@@ -15,12 +13,13 @@ interface GameScreenProps {
 
 const GameScreen: React.FC<GameScreenProps> = ({ user, onLogout }) => {
   const {
-    playClick,
-    playCorrect,
-    playWrong,
+    playClickSound,
+    playCorrectSound,
+    playWrongSound,
+    playHoverSound,
+    playErrorSound,
   } = useGameSounds();
 
-  // Placeholder trivia data
   const sampleQuestion: TriviaQuestion = {
     question: 'What is the capital of France?',
     correctAnswer: 'Paris',
@@ -36,18 +35,17 @@ const GameScreen: React.FC<GameScreenProps> = ({ user, onLogout }) => {
   const [disabledOptions, setDisabledOptions] = useState<string[]>([]);
 
   const handleAnswerClick = (answer: string) => {
-    if (isAnswered) return;
+    if (isAnswered) {
+      playErrorSound();
+      return;
+    }
 
-    playClick();
     const isCorrect = answer === question?.correctAnswer;
     setSelectedAnswer(answer);
     setIsAnswered(true);
 
-    if (isCorrect) {
-      playCorrect();
-    } else {
-      playWrong();
-    }
+    playClickSound();
+    isCorrect ? playCorrectSound() : playWrongSound();
 
     setTimeout(() => {
       setIsAnswered(false);
@@ -58,7 +56,6 @@ const GameScreen: React.FC<GameScreenProps> = ({ user, onLogout }) => {
 
   const handleLogoutClick = async () => {
     await supabase.auth.signOut();
-    playClick();
     onLogout();
   };
 
@@ -95,8 +92,9 @@ const GameScreen: React.FC<GameScreenProps> = ({ user, onLogout }) => {
               <button
                 key={option}
                 onClick={() => handleAnswerClick(option)}
+                onMouseEnter={() => playHoverSound()}
                 disabled={isAnswered || disabledOptions.includes(option)}
-                className={`w-full py-3 px-4 rounded-lg text-lg font-semibold transition-all duration-300 transform ${getButtonClass(option)}`}
+                className={`w-full py-3 px-4 rounded-lg text-lg font-semibold transition-all duration-300 ${getButtonClass(option)}`}
               >
                 <div className="flex items-center justify-center">
                   {isAnswered && option === question.correctAnswer && <CheckIcon className="w-6 h-6 mr-2" />}

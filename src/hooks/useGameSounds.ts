@@ -1,52 +1,49 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
-type GameSoundType = 'click' | 'correct' | 'wrong';
+type SoundKey = 'click' | 'correct' | 'wrong' | 'intro' | 'hover' | 'error';
 
-const SOUND_PATHS: Record<GameSoundType, string> = {
+const soundPaths: Record<SoundKey, string> = {
   click: '/sounds/click.wav',
   correct: '/sounds/correct.wav',
   wrong: '/sounds/wrong.wav',
+  intro: '/sounds/intro.wav',
+  hover: '/sounds/hover.wav',
+  error: '/sounds/error.wav',
 };
 
-export const useGameSounds = () => {
-  const [mute, setMute] = useState(false);
-  const [audioElements, setAudioElements] = useState<Record<GameSoundType, HTMLAudioElement>>({
-    click: new Audio(SOUND_PATHS.click),
-    correct: new Audio(SOUND_PATHS.correct),
-    wrong: new Audio(SOUND_PATHS.wrong),
-  });
+let globalVolume = 0.5;
 
-  // Ensure audio preloads and respects mute
+export const setGlobalVolume = (volume: number) => {
+  globalVolume = Math.min(Math.max(volume, 0), 1);
+};
+
+export default function useGameSounds() {
+  const audioRefs = useRef<Record<SoundKey, HTMLAudioElement>>({} as any);
+
   useEffect(() => {
-    const newAudioElements = Object.entries(SOUND_PATHS).reduce((acc, [key, path]) => {
-      const audio = new Audio(path);
-      audio.volume = 1;
-      audio.preload = 'auto';
-      acc[key as GameSoundType] = audio;
-      return acc;
-    }, {} as Record<GameSoundType, HTMLAudioElement>);
-    setAudioElements(newAudioElements);
+    Object.entries(soundPaths).forEach(([key, src]) => {
+      const audio = new Audio(src);
+      audio.volume = globalVolume;
+      audioRefs.current[key as SoundKey] = audio;
+    });
   }, []);
 
-  const playSound = useCallback(
-    (type: GameSoundType) => {
-      if (mute || !audioElements[type]) return;
-      const audio = audioElements[type];
+  const playSound = useCallback((key: SoundKey) => {
+    const audio = audioRefs.current[key];
+    if (audio) {
+      audio.volume = globalVolume;
       audio.currentTime = 0;
-      audio.play().catch((err) => {
-        console.warn(`Failed to play sound "${type}":`, err);
-      });
-    },
-    [mute, audioElements]
-  );
-
-  const toggleMute = () => setMute((prev) => !prev);
+      audio.play().catch((e) => console.warn(`Failed to play ${key}:`, e));
+    }
+  }, []);
 
   return {
-    mute,
-    toggleMute,
-    playClick: () => playSound('click'),
-    playCorrect: () => playSound('correct'),
-    playWrong: () => playSound('wrong'),
+    playClickSound: () => playSound('click'),
+    playCorrectSound: () => playSound('correct'),
+    playWrongSound: () => playSound('wrong'),
+    playIntroSound: () => playSound('intro'),
+    playHoverSound: () => playSound('hover'),
+    playErrorSound: () => playSound('error'),
+    setGlobalVolume,
   };
-};
+}
