@@ -4,6 +4,8 @@ import AuthScreen from './components/AuthScreen';
 import StartScreen from './components/StartScreen';
 import GameScreen from './components/GameScreen';  
 import VolumeControl from './components/VolumeControl';
+import './App.css';
+// import './App.css'; // Removed because file does not exist and Tailwind is imported elsewhere
 
 function App() {
   const [user, setUser] = useState<any>(null);
