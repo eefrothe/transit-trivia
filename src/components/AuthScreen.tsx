@@ -1,116 +1,46 @@
-import { useState } from 'react';
-import { supabase } from '../lib/supabaseClient';
-import Spinner from './Spinner';
+import { useState } from "react";
+import { supabase } from "../lib/supabaseClient";
+import Spinner from "./Spinner";
 
-const AuthScreen: React.FC = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
+function AuthScreen() {
+  const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState("");
 
-  const handleAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleLogin = async () => {
     setLoading(true);
-    setError(null);
-
-    const authFn =
-      mode === 'login'
-        ? supabase.auth.signInWithPassword
-        : supabase.auth.signUp;
-
-    const { error } = await authFn({ email, password });
-
-    if (error) setError(error.message);
-    setLoading(false);
-  };
-
-  const handleGoogleLogin = async () => {
-    setLoading(true);
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-    });
-    if (error) setError(error.message);
+    setMessage("");
+    const { error } = await supabase.auth.signInWithOtp({ email });
+    if (error) {
+      setMessage(error.message);
+    } else {
+      setMessage("Check your email for the login link!");
+    }
     setLoading(false);
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen px-4 bg-slate-950 text-white">
-      <div className="w-full max-w-md bg-slate-900 p-8 rounded-xl shadow-xl animate-fade-in">
-        <h1 className="text-2xl font-bold mb-6 text-center">
-          {mode === 'login' ? 'Login' : 'Create Account'}
-        </h1>
-
-        <form onSubmit={handleAuth} className="space-y-4">
-          <label className="block">
-            <span className="text-sm font-medium">Email Address</span>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 w-full p-3 rounded-md bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </label>
-
-          <label className="block">
-            <span className="text-sm font-medium">Password</span>
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 w-full p-3 rounded-md bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </label>
-
-          {error && <p className="text-red-400 text-sm">{error}</p>}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-lg transition"
-          >
-            {loading ? <Spinner size="sm" /> : mode === 'login' ? 'Log In' : 'Sign Up'}
-          </button>
-        </form>
-
-        <div className="text-center my-4 text-sm text-gray-400">or</div>
-
+    <div className="flex items-center justify-center min-h-screen bg-slate-950 text-white dark:bg-slate-900 dark:text-white p-4">
+      <div className="bg-slate-900 dark:bg-slate-800 p-8 rounded-xl shadow-xl w-full max-w-md text-center animate-fade-in">
+        <h1 className="text-2xl font-bold mb-6">Sign in to Transit Trivia</h1>
+        <input
+          className="w-full px-4 py-2 mb-4 rounded bg-slate-800 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand dark:bg-slate-700"
+          type="email"
+          placeholder="Enter your email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
         <button
-          onClick={handleGoogleLogin}
-          disabled={loading}
-          className="w-full bg-red-500 hover:bg-red-400 text-white py-3 rounded-lg transition"
+          onClick={handleLogin}
+          disabled={loading || !email}
+          className="w-full bg-brand hover:bg-brand-light text-white py-2 rounded transition disabled:opacity-50"
         >
-          {loading ? <Spinner size="sm" /> : 'Continue with Google'}
+          {loading ? <Spinner size="sm" /> : "Send Magic Link"}
         </button>
-
-        <div className="mt-6 text-center text-sm">
-          {mode === 'login' ? (
-            <>
-              Don’t have an account?{' '}
-              <button
-                onClick={() => setMode('signup')}
-                className="text-blue-400 hover:underline"
-              >
-                Sign Up
-              </button>
-            </>
-          ) : (
-            <>
-              Already have an account?{' '}
-              <button
-                onClick={() => setMode('login')}
-                className="text-blue-400 hover:underline"
-              >
-                Log In
-              </button>
-            </>
-          )}
-        </div>
+        {message && <p className="mt-4 text-sm text-gray-300 dark:text-gray-400">{message}</p>}
       </div>
     </div>
   );
-};
+}
 
 export default AuthScreen;

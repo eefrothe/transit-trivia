@@ -1,17 +1,25 @@
-import React, { useState } from 'react';
-import { supabase } from '@/lib/supabaseClient';
-import { TriviaQuestion } from '../types';
-import { POST_ANSWER_DELAY_MS } from '../constants';
-import useGameSounds from '../hooks/useGameSounds';
-import { CheckIcon, XIcon } from './icons';
-import AuthScreen from './AuthScreen';
+import React, { useEffect, useState } from "react";
+import QuestionCard from "./QuestionCard";
+import { supabase } from "../lib/supabaseClient";
+import Spinner from "./Spinner";
+import VolumeControl from "./VolumeControl";
+import { useGameSounds } from "../hooks/useGameSounds";
 
 interface GameScreenProps {
   user: any;
-  onLogout: () => void;
+  onLogout: () => Promise<void>;
 }
 
+const MAX_QUESTIONS = 5;
+
 const GameScreen: React.FC<GameScreenProps> = ({ user, onLogout }) => {
+  const [question, setQuestion] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [answeredCorrectly, setAnsweredCorrectly] = useState<boolean | null>(null);
+  const [score, setScore] = useState(0);
+  const [questionCount, setQuestionCount] = useState(0);
+  const [gameOver, setGameOver] = useState(false);
+
   const {
     playClickSound,
     playCorrectSound,
@@ -20,91 +28,110 @@ const GameScreen: React.FC<GameScreenProps> = ({ user, onLogout }) => {
     playErrorSound,
   } = useGameSounds();
 
-  const sampleQuestion: TriviaQuestion = {
-    question: 'What is the capital of France?',
-    correctAnswer: 'Paris',
-    options: ['Paris', 'London', 'Berlin', 'Rome'],
-    category: 'Geography',
-    questionType: 'text',
-    imageUrl: '',
+  const fetchQuestion = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("questions")
+        .select("question")
+        .limit(1)
+        .single();
+
+      if (error) throw error;
+      setQuestion(data?.question);
+    } catch (err) {
+      console.error("Failed to load question", err);
+      playErrorSound();
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const [question, setQuestion] = useState<TriviaQuestion | null>(sampleQuestion);
-  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
-  const [isAnswered, setIsAnswered] = useState(false);
-  const [disabledOptions, setDisabledOptions] = useState<string[]>([]);
+  useEffect(() => {
+    if (!gameOver) fetchQuestion();
+  }, [questionCount, gameOver]);
 
-  const handleAnswerClick = (answer: string) => {
-    if (isAnswered) {
-      playErrorSound();
-      return;
+  const handleAnswer = (isCorrect: boolean) => {
+    if (isCorrect) {
+      playCorrectSound();
+      setScore((prev) => prev + 1);
+    } else {
+      playWrongSound();
     }
 
-    const isCorrect = answer === question?.correctAnswer;
-    setSelectedAnswer(answer);
-    setIsAnswered(true);
-
-    playClickSound();
-    isCorrect ? playCorrectSound() : playWrongSound();
+    setAnsweredCorrectly(isCorrect);
 
     setTimeout(() => {
-      setIsAnswered(false);
-      setSelectedAnswer(null);
-      setDisabledOptions([]);
-    }, POST_ANSWER_DELAY_MS);
+      setAnsweredCorrectly(null);
+      if (questionCount + 1 >= MAX_QUESTIONS) {
+        setGameOver(true);
+      } else {
+        setQuestionCount((prev) => prev + 1);
+      }
+    }, 1000);
   };
 
-  const handleLogoutClick = async () => {
-    await supabase.auth.signOut();
-    onLogout();
+  const resetGame = () => {
+    setScore(0);
+    setQuestionCount(0);
+    setGameOver(false);
   };
-
-  const getButtonClass = (option: string) => {
-    const isDisabledByPowerUp = disabledOptions.includes(option);
-    if (isDisabledByPowerUp) return 'bg-slate-900 !opacity-20 cursor-not-allowed';
-    if (!isAnswered) return 'bg-slate-800 hover:bg-slate-700';
-    const isCorrect = option === question?.correctAnswer;
-    if (isCorrect) return 'bg-green-500 scale-105';
-    const isSelected = option === selectedAnswer;
-    if (isSelected && !isCorrect) return 'bg-red-500';
-    return 'bg-slate-800 opacity-50';
-  };
-
-  if (!user) return <AuthScreen />;
 
   return (
-    <div className="flex flex-col items-center justify-center p-6 text-white animate-fade-in">
-      <div className="w-full max-w-xl">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">Welcome, {user.email || 'Player'}!</h1>
-          <button
-            onClick={handleLogoutClick}
-            className="bg-red-500 hover:bg-red-400 text-white px-4 py-2 rounded-lg"
-          >
-            Logout
-          </button>
-        </div>
-
-        <div className="text-center">
-          <h2 className="text-xl font-semibold mb-4">{question?.question}</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {question?.options.map((option) => (
-              <button
-                key={option}
-                onClick={() => handleAnswerClick(option)}
-                onMouseEnter={() => playHoverSound()}
-                disabled={isAnswered || disabledOptions.includes(option)}
-                className={`w-full py-3 px-4 rounded-lg text-lg font-semibold transition-all duration-300 ${getButtonClass(option)}`}
-              >
-                <div className="flex items-center justify-center">
-                  {isAnswered && option === question.correctAnswer && <CheckIcon className="w-6 h-6 mr-2" />}
-                  {isAnswered && selectedAnswer === option && option !== question.correctAnswer && <XIcon className="w-6 h-6 mr-2" />}
-                  <span>{option}</span>
-                </div>
-              </button>
-            ))}
+    <div className="min-h-screen bg-slate-950 dark:bg-slate-900 text-white flex flex-col items-center p-6">
+      <div className="w-full max-w-2xl mt-8 animate-fade-in">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-2xl font-bold tracking-tight">🚋 Transit Trivia</h2>
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-gray-300">{user?.email}</span>
+            <button
+              onClick={onLogout}
+              className="bg-red-600 hover:bg-red-500 text-white py-1 px-3 rounded-lg text-sm font-medium"
+            >
+              Logout
+            </button>
+            <VolumeControl />
           </div>
         </div>
+
+        {/* Score HUD */}
+        <div className="flex justify-between items-center mb-6 px-4 text-sm text-gray-400">
+          <span>Score: <strong>{score}</strong></span>
+          <span>Question {questionCount + 1} / {MAX_QUESTIONS}</span>
+        </div>
+
+        {/* Game State */}
+        {gameOver ? (
+          <div className="text-center py-20">
+            <h3 className="text-2xl font-semibold mb-4">🎉 Game Over!</h3>
+            <p className="text-gray-400 mb-6">
+              Your score: <strong>{score} / {MAX_QUESTIONS}</strong>
+            </p>
+            <button
+              onClick={resetGame}
+              className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg font-medium"
+            >
+              Play Again
+            </button>
+          </div>
+        ) : loading ? (
+          <div className="flex justify-center py-12">
+            <Spinner size="lg" />
+          </div>
+        ) : question ? (
+          <QuestionCard
+            question={question}
+            onAnswer={handleAnswer}
+            playClickSound={playClickSound}
+            playHoverSound={playHoverSound}
+            answeredCorrectly={answeredCorrectly}
+          />
+        ) : (
+          <div className="text-center text-gray-400 py-12">
+            No question available.
+          </div>
+        )}
       </div>
     </div>
   );
