@@ -1,54 +1,61 @@
-import React from "react";
+// src/components/QuestionCard.tsx
+import React from 'react';
+import { motion } from 'framer-motion';
 
-interface QuestionCardProps {
+type QuestionCardProps = {
   question: string;
-  onAnswer: (isCorrect: boolean) => void;
-  playClickSound: () => void;
-  playHoverSound: () => void;
-  answeredCorrectly: boolean | null;
-}
+  choices: string[];
+  correct: string;
+  selected: string | null;
+  onSelect: (choice: string) => void;
+  disabled: boolean;
+};
+
+const variants = {
+  hover: { scale: 1.02 },
+  tap: { scale: 0.98 },
+};
+
+const feedbackVariants = {
+  initial: { opacity: 0 },
+  show: (color: string) => ({
+    opacity: 1,
+    borderColor: color,
+    transition: { duration: 0.3 },
+  }),
+};
 
 const QuestionCard: React.FC<QuestionCardProps> = ({
   question,
-  onAnswer,
-  playClickSound,
-  playHoverSound,
-  answeredCorrectly,
-}) => {
-  const handleClick = (isCorrect: boolean) => {
-    playClickSound();
-    onAnswer(isCorrect);
-  };
-
-  const feedbackClass = answeredCorrectly === null
-    ? ""
-    : answeredCorrectly
-    ? "border-green-500 bg-green-900 text-green-200"
-    : "border-red-500 bg-red-900 text-red-200";
-
-  return (
-    <div
-      className={`rounded-xl border p-6 shadow-md transition-all duration-500 ${feedbackClass}`}
-    >
-      <h3 className="text-lg font-semibold mb-6">{question}</h3>
-      <div className="flex gap-4 justify-center">
-        <button
-          onMouseEnter={playHoverSound}
-          onClick={() => handleClick(true)}
-          className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium"
-        >
-          True
-        </button>
-        <button
-          onMouseEnter={playHoverSound}
-          onClick={() => handleClick(false)}
-          className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium"
-        >
-          False
-        </button>
-      </div>
+  choices,
+  correct,
+  selected,
+  onSelect,
+  disabled,
+}) => (
+  <div className="space-y-4">
+    <h2 className="text-xl font-bold">{question}</h2>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {choices.map(choice => {
+        const isCorrect = selected === choice && choice === correct;
+        const isWrong = selected === choice && choice !== correct;
+        const borderColor = isCorrect ? 'border-green-500' : isWrong ? 'border-red-500' : 'border-transparent';
+        return (
+          <motion.button
+            key={choice}
+            onClick={() => onSelect(choice)}
+            disabled={disabled}
+            className={`p-4 rounded-lg border-2 ${borderColor} bg-slate-800 hover:bg-slate-700 text-left`}
+            variants={variants}
+            whileHover="hover"
+            whileTap="tap"
+          >
+            {choice}
+          </motion.button>
+        );
+      })}
     </div>
-  );
-};
+  </div>
+);
 
 export default QuestionCard;

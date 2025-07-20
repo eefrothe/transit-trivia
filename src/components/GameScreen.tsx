@@ -1,9 +1,19 @@
 import React, { useEffect, useState } from "react";
-import QuestionCard from "./QuestionCard";
 import { supabase } from "../lib/supabaseClient";
+import QuestionCard from "./QuestionCard";
 import Spinner from "./Spinner";
 import VolumeControl from "./VolumeControl";
+import GameOver from "./GameOver";
 import { useGameSounds } from "../hooks/useGameSounds";
+
+export interface Question {
+  id: string;
+  question: string;
+  correct: string;
+  incorrect_1: string;
+  incorrect_2: string;
+  incorrect_3?: string;
+}
 
 interface GameScreenProps {
   user: any;
@@ -13,34 +23,48 @@ interface GameScreenProps {
 const MAX_QUESTIONS = 5;
 
 const GameScreen: React.FC<GameScreenProps> = ({ user, onLogout }) => {
-  const [question, setQuestion] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [answeredCorrectly, setAnsweredCorrectly] = useState<boolean | null>(null);
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [selected, setSelected] = useState<string | null>(null);
   const [score, setScore] = useState(0);
-  const [questionCount, setQuestionCount] = useState(0);
+  const [loading, setLoading] = useState(true);
   const [gameOver, setGameOver] = useState(false);
 
   const {
     playClickSound,
     playCorrectSound,
     playWrongSound,
-    playHoverSound,
     playErrorSound,
+    playHoverSound,
   } = useGameSounds();
 
-  const fetchQuestion = async () => {
+  const fetchQuestions = async () => {
     setLoading(true);
+    setGameOver(false);
+    setScore(0);
+    setSelected(null);
+    setCurrentIndex(0);
+
     try {
       const { data, error } = await supabase
         .from("questions")
-        .select("question")
-        .limit(1)
-        .single();
+        .select("*")
+        .limit(MAX_QUESTIONS);
 
       if (error) throw error;
-      setQuestion(data?.question);
+
+      const shuffled = data.map((q: Question) => {
+        const options = [q.correct, q.incorrect_1, q.incorrect_2];
+        if (q.incorrect_3) options.push(q.incorrect_3);
+        return {
+          ...q,
+          options: options.sort(() => Math.random() - 0.5),
+        };
+      });
+
+      setQuestions(shuffled);
     } catch (err) {
-      console.error("Failed to load question", err);
+      console.error("Failed to load questions", err);
       playErrorSound();
     } finally {
       setLoading(false);
@@ -48,91 +72,78 @@ const GameScreen: React.FC<GameScreenProps> = ({ user, onLogout }) => {
   };
 
   useEffect(() => {
-    if (!gameOver) fetchQuestion();
-  }, [questionCount, gameOver]);
+    fetchQuestions();
+  }, []);
 
-  const handleAnswer = (isCorrect: boolean) => {
-    if (isCorrect) {
-      playCorrectSound();
+  const handleSelect = (choice: string) => {
+    setSelected(choice);
+    const correctAnswer = questions[currentIndex].correct;
+
+    if (choice === correctAnswer) {
       setScore((prev) => prev + 1);
+      playCorrectSound();
     } else {
       playWrongSound();
     }
 
-    setAnsweredCorrectly(isCorrect);
-
     setTimeout(() => {
-      setAnsweredCorrectly(null);
-      if (questionCount + 1 >= MAX_QUESTIONS) {
-        setGameOver(true);
+      setSelected(null);
+      if (currentIndex + 1 < questions.length) {
+        setCurrentIndex((prev) => prev + 1);
       } else {
-        setQuestionCount((prev) => prev + 1);
+        setGameOver(true);
       }
     }, 1000);
   };
 
-  const resetGame = () => {
-    setScore(0);
-    setQuestionCount(0);
-    setGameOver(false);
-  };
+  const current = questions[currentIndex];
 
   return (
-    <div className="min-h-screen bg-slate-950 dark:bg-slate-900 text-white flex flex-col items-center p-6">
-      <div className="w-full max-w-2xl mt-8 animate-fade-in">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold tracking-tight">🚋 Transit Trivia</h2>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-300">{user?.email}</span>
-            <button
-              onClick={onLogout}
-              className="bg-red-600 hover:bg-red-500 text-white py-1 px-3 rounded-lg text-sm font-medium"
-            >
-              Logout
-            </button>
-            <VolumeControl />
-          </div>
+    <div className="min-h-screen bg-slate-950 text-white p-6 flex flex-col items-center">
+      <header className="w-full max-w-3xl flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Transit Trivia</h1>
+        <div className="flex items-center gap-4">
+          <span className="text-sm text-gray-300">{user?.email}</span>
+          <button
+            onClick={onLogout}
+            className="bg-red-600 hover:bg-red-500 text-white px-4 py-1.5 rounded text-sm"
+          >
+            Logout
+          </button>
+          <VolumeControl />
         </div>
+      </header>
 
-        {/* Score HUD */}
-        <div className="flex justify-between items-center mb-6 px-4 text-sm text-gray-400">
-          <span>Score: <strong>{score}</strong></span>
-          <span>Question {questionCount + 1} / {MAX_QUESTIONS}</span>
-        </div>
-
-        {/* Game State */}
-        {gameOver ? (
-          <div className="text-center py-20">
-            <h3 className="text-2xl font-semibold mb-4">🎉 Game Over!</h3>
-            <p className="text-gray-400 mb-6">
-              Your score: <strong>{score} / {MAX_QUESTIONS}</strong>
-            </p>
-            <button
-              onClick={resetGame}
-              className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg font-medium"
-            >
-              Play Again
-            </button>
-          </div>
-        ) : loading ? (
-          <div className="flex justify-center py-12">
+      <main className="w-full max-w-2xl flex-grow flex flex-col justify-center">
+        {loading ? (
+          <div className="flex justify-center py-20">
             <Spinner size="lg" />
           </div>
-        ) : question ? (
-          <QuestionCard
-            question={question}
-            onAnswer={handleAnswer}
-            playClickSound={playClickSound}
-            playHoverSound={playHoverSound}
-            answeredCorrectly={answeredCorrectly}
+        ) : gameOver ? (
+          <GameOver
+            score={score}
+            total={questions.length}
+            onRestart={fetchQuestions}
           />
         ) : (
-          <div className="text-center text-gray-400 py-12">
-            No question available.
-          </div>
+          <QuestionCard
+            question={current.question}
+            choices={current.options}
+            correct={current.correct}
+            selected={selected}
+            onSelect={handleSelect}
+            disabled={!!selected}
+            playClickSound={playClickSound}
+            playHoverSound={playHoverSound}
+          />
         )}
-      </div>
+      </main>
+
+      {!loading && !gameOver && (
+        <footer className="mt-10 text-gray-400 text-sm">
+          Question {currentIndex + 1} / {questions.length} | Score: {score}
+        </footer>
+      )}
     </div>
   );
 };
