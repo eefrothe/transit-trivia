@@ -1,69 +1,71 @@
 /* src/App.css */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
 @import './styles/utilities.css';
 
-
-/* Custom global styles */
+/* Global styles */
 html,
-body {@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-/* Custom Animations */
-@layer utilities {
-  .fade-in {
-    animation: fadeIn 0.4s ease-out;
-  }
-
-  @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-}
-
-/* Global Styles */
 body {
-  @apply bg-slate-900 text-white;
-}
-
   @apply bg-slate-950 text-white font-sans antialiased;
   scroll-behavior: smooth;
 }
 
-/* Headings with custom font */
+/* Headings use display font */
 h1, h2, h3, h4, h5, h6 {
   @apply font-display;
 }
 
-/* Buttons (optional global button styles) */
+/* Button styles */
 button {
   @apply rounded-xl px-4 py-2 font-semibold transition duration-300;
 }
 
-/* Fade-in animation utility (optional override/tweak) */
-.animate-fade-in {
-  animation: fadeIn 0.5s ease-out;
-}
-
-@keyframes fadeIn {
-  0% {
-    opacity: 0;
-    transform: translateY(4px);
+/* Custom animations */
+@layer utilities {
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
-  100% {
-    opacity: 1;
-    transform: translateY(0);
+
+  @keyframes shake {
+    0%, 100% {
+      transform: translateX(0);
+    }
+    25% {
+      transform: translateX(-5px);
+    }
+    75% {
+      transform: translateX(5px);
+    }
   }
-}
 
-@keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  20%, 60% { transform: translateX(-6px); }
-  40%, 80% { transform: translateX(6px); }
-}
+  @keyframes bounceCorrect {
+    0%, 100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.08);
+    }
+  }
 
-.shake {
-  animation: shake 0.4s ease-in-out;
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-out both;
+  }
+
+  .animate-shake {
+    animation: shake 0.4s ease-in-out both;
+  }
+
+  .animate-bounce-correct {
+    animation: bounceCorrect 0.4s ease-in-out both;
+  }
 }

@@ -40,6 +40,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ user, onLogout }) => {
     playWrongSound,
     playHoverSound,
     playErrorSound,
+    playConfettiSound,
   } = useGameSounds();
 
   const fetchQuestion = async () => {
@@ -174,6 +175,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ user, onLogout }) => {
             answeredCorrectly={answeredCorrectly}
             timeLeft={timeLeft}
             totalTime={TIME_LIMIT}
+            playConfettiSound={playConfettiSound}
           />
 
 

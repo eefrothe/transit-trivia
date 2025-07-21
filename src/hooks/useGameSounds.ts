@@ -1,49 +1,30 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useRef } from "react";
 
-type SoundKey = 'click' | 'correct' | 'wrong' | 'intro' | 'hover' | 'error';
+export function useGameSounds() {
+  const clickSound = useRef(new Audio("/sounds/click.wav"));
+  const correctSound = useRef(new Audio("/sounds/correct.wav"));
+  const wrongSound = useRef(new Audio("/sounds/wrong.wav"));
+  const hoverSound = useRef(new Audio("/sounds/hover.wav"));
+  const errorSound = useRef(new Audio("/sounds/error.wav"));
+  const confettiSound = useRef(new Audio("/sounds/confetti.mp3"));
 
-const soundPaths: Record<SoundKey, string> = {
-  click: '/sounds/click.wav',
-  correct: '/sounds/correct.wav',
-  wrong: '/sounds/wrong.wav',
-  intro: '/sounds/intro.wav',
-  hover: '/sounds/hover.wav',
-  error: '/sounds/error.wav',
-};
-
-let globalVolume = 0.5;
-
-export const setGlobalVolume = (volume: number) => {
-  globalVolume = Math.min(Math.max(volume, 0), 1);
-};
-
-export default function useGameSounds() {
-  const audioRefs = useRef<Record<SoundKey, HTMLAudioElement>>({} as any);
-
-  useEffect(() => {
-    Object.entries(soundPaths).forEach(([key, src]) => {
-      const audio = new Audio(src);
-      audio.volume = globalVolume;
-      audioRefs.current[key as SoundKey] = audio;
-    });
-  }, []);
-
-  const playSound = useCallback((key: SoundKey) => {
-    const audio = audioRefs.current[key];
+  const playSound = (audioRef: React.RefObject<HTMLAudioElement>) => {
+    const audio = audioRef.current;
     if (audio) {
-      audio.volume = globalVolume;
       audio.currentTime = 0;
-      audio.play().catch((e) => console.warn(`Failed to play ${key}:`, e));
+      audio.play().catch((err) => {
+        // Gracefully fail if autoplay is blocked
+        console.warn("Audio play blocked:", err);
+      });
     }
-  }, []);
+  };
 
   return {
-    playClickSound: () => playSound('click'),
-    playCorrectSound: () => playSound('correct'),
-    playWrongSound: () => playSound('wrong'),
-    playIntroSound: () => playSound('intro'),
-    playHoverSound: () => playSound('hover'),
-    playErrorSound: () => playSound('error'),
-    setGlobalVolume,
+    playClickSound: () => playSound(clickSound),
+    playCorrectSound: () => playSound(correctSound),
+    playWrongSound: () => playSound(wrongSound),
+    playHoverSound: () => playSound(hoverSound),
+    playErrorSound: () => playSound(errorSound),
+    playConfettiSound: () => playSound(confettiSound),
   };
 }
