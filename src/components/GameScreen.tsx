@@ -3,8 +3,10 @@ import { supabase } from "../lib/supabaseClient";
 import Spinner from "./Spinner";
 import VolumeControl from "./VolumeControl";
 import QuestionCard from "./QuestionCard";
+import ShareButtons from "./ShareButtons";
 import { useGameSounds } from "../hooks/useGameSounds";
 import confetti from "canvas-confetti";
+import GameOver from "./GameOver";
 
 const MAX_QUESTIONS = 5;
 const TIME_LIMIT = 15;
@@ -32,9 +34,9 @@ const GameScreen: React.FC<GameScreenProps> = ({ user, onLogout }) => {
   const [gameOver, setGameOver] = useState(false);
   const [answeredCorrectly, setAnsweredCorrectly] = useState<boolean | null>(null);
   const [timeLeft, setTimeLeft] = useState(TIME_LIMIT);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const bgMusicRef = useRef<HTMLAudioElement | null>(null);
+  const [musicPlaying, setMusicPlaying] = useState(true);
 
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
   const {
     playClickSound,
     playCorrectSound,
@@ -42,9 +44,10 @@ const GameScreen: React.FC<GameScreenProps> = ({ user, onLogout }) => {
     playHoverSound,
     playErrorSound,
     playConfettiSound,
+    playBackgroundMusic,
+    pauseBackgroundMusic,
   } = useGameSounds();
 
-  // Fetch a new question
   const fetchQuestion = async () => {
     setLoading(true);
     try {
@@ -65,39 +68,43 @@ const GameScreen: React.FC<GameScreenProps> = ({ user, onLogout }) => {
     }
   };
 
-  // Game start
+  useEffect(() => {
+    playBackgroundMusic();
+    return pauseBackgroundMusic;
+  }, []);
+
   useEffect(() => {
     if (!gameOver) {
       fetchQuestion();
-      fadeInBackgroundMusic();
     }
   }, [questionCount]);
 
-  // Timer logic
   useEffect(() => {
-    if (!loading && !gameOver && currentQuestion) {
+    if (!loading && currentQuestion && !gameOver) {
       setTimeLeft(TIME_LIMIT);
       if (timerRef.current) clearInterval(timerRef.current);
+
       timerRef.current = setInterval(() => {
         setTimeLeft((prev) => {
-          if (prev === 1) {
-            handleAnswer(false); // Auto-fail
+          if (prev <= 1) {
+            handleAnswer(false);
             return TIME_LIMIT;
           }
           return prev - 1;
         });
       }, 1000);
     }
-    return () => timerRef.current && clearInterval(timerRef.current);
-  }, [currentQuestion, loading]);
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [currentQuestion]);
 
   const handleAnswer = (isCorrect: boolean) => {
     if (timerRef.current) clearInterval(timerRef.current);
 
     if (isCorrect) {
       playCorrectSound();
-      playConfettiSound();
-      confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
       setScore((prev) => prev + 1);
     } else {
       playWrongSound();
@@ -109,7 +116,10 @@ const GameScreen: React.FC<GameScreenProps> = ({ user, onLogout }) => {
       setAnsweredCorrectly(null);
       if (questionCount + 1 >= MAX_QUESTIONS) {
         setGameOver(true);
-        stopBackgroundMusic();
+        if (score + (isCorrect ? 1 : 0) >= MAX_QUESTIONS * 0.7) {
+          confetti({ spread: 100, particleCount: 150 });
+          playConfettiSound();
+        }
       } else {
         setQuestionCount((prev) => prev + 1);
       }
@@ -120,36 +130,16 @@ const GameScreen: React.FC<GameScreenProps> = ({ user, onLogout }) => {
     setScore(0);
     setQuestionCount(0);
     setGameOver(false);
-    setTimeLeft(TIME_LIMIT);
     fetchQuestion();
-    fadeInBackgroundMusic();
   };
 
-  const fadeInBackgroundMusic = () => {
-    if (!bgMusicRef.current) {
-      bgMusicRef.current = new Audio("/sounds/bg-music.wav");
-      bgMusicRef.current.loop = true;
-      bgMusicRef.current.volume = 0;
-      bgMusicRef.current.play().catch((err) => console.warn("Music blocked:", err));
+  const toggleMusic = () => {
+    if (musicPlaying) {
+      pauseBackgroundMusic();
+    } else {
+      playBackgroundMusic();
     }
-
-    let vol = 0;
-    const interval = setInterval(() => {
-      if (bgMusicRef.current && vol < 0.5) {
-        vol += 0.05;
-        bgMusicRef.current.volume = Math.min(vol, 0.5);
-      } else {
-        clearInterval(interval);
-      }
-    }, 100);
-  };
-
-  const stopBackgroundMusic = () => {
-    if (bgMusicRef.current) {
-      bgMusicRef.current.pause();
-      bgMusicRef.current.currentTime = 0;
-      bgMusicRef.current = null;
-    }
+    setMusicPlaying(!musicPlaying);
   };
 
   return (
@@ -166,10 +156,15 @@ const GameScreen: React.FC<GameScreenProps> = ({ user, onLogout }) => {
               Logout
             </button>
             <VolumeControl />
+            <button
+              onClick={toggleMusic}
+              className="ml-2 text-xs bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded"
+            >
+              {musicPlaying ? "Pause Music" : "Play Music"}
+            </button>
           </div>
         </div>
 
-        {/* HUD */}
         <div className="flex justify-between items-center mb-4 text-sm text-gray-300 px-2">
           <span>Score: <strong>{score}</strong></span>
           <span>Question {questionCount + 1} / {MAX_QUESTIONS}</span>
@@ -179,10 +174,13 @@ const GameScreen: React.FC<GameScreenProps> = ({ user, onLogout }) => {
         {gameOver ? (
           <div className="text-center py-20">
             <h3 className="text-2xl font-semibold mb-4">🎉 Game Over!</h3>
-            <p className="text-gray-400 mb-6">Your score: <strong>{score} / {MAX_QUESTIONS}</strong></p>
+            <p className="text-gray-400 mb-4">
+              Your score: <strong>{score} / {MAX_QUESTIONS}</strong>
+            </p>
+            <ShareButtons score={score} />
             <button
               onClick={handleRestart}
-              className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg font-medium"
+              className="mt-6 bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg font-medium"
             >
               Play Again
             </button>
