@@ -1,16 +1,34 @@
-import React, { useState } from 'react';
-import { setGlobalVolume } from '../hooks/useGameSounds';
-import { SpeakerWaveIcon, SpeakerXMarkIcon } from '@heroicons/react/24/outline';
+import React, { useState, useEffect } from "react";
+import { setGlobalVolume, useGameSounds } from "../hooks/useGameSounds";
+import { SpeakerWaveIcon, SpeakerXMarkIcon } from "@heroicons/react/24/outline";
 
 const VolumeControl: React.FC = () => {
   const [volume, setVolume] = useState(0.5);
   const [muted, setMuted] = useState(false);
+  const { bgMusicRef } = useGameSounds();
+
+  useEffect(() => {
+    // Set initial volume on mount
+    setGlobalVolume(volume);
+    if (bgMusicRef?.current) {
+      bgMusicRef.current.volume = volume;
+    }
+  }, []);
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newVolume = parseFloat(e.target.value);
     setVolume(newVolume);
-    setGlobalVolume(newVolume);
     setMuted(newVolume === 0);
+    setGlobalVolume(newVolume);
+
+    if (bgMusicRef?.current) {
+      bgMusicRef.current.volume = newVolume;
+      if (newVolume > 0 && bgMusicRef.current.paused) {
+        bgMusicRef.current.play().catch(() => {
+          // ignore autoplay issues
+        });
+      }
+    }
   };
 
   const toggleMute = () => {
@@ -19,6 +37,17 @@ const VolumeControl: React.FC = () => {
     const newVolume = newMuted ? 0 : 0.5;
     setVolume(newVolume);
     setGlobalVolume(newVolume);
+
+    if (bgMusicRef?.current) {
+      bgMusicRef.current.volume = newVolume;
+      if (newMuted) {
+        bgMusicRef.current.pause();
+      } else {
+        bgMusicRef.current.play().catch(() => {
+          // ignore autoplay issues
+        });
+      }
+    }
   };
 
   return (
