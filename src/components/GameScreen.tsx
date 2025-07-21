@@ -6,7 +6,6 @@ import QuestionCard from "./QuestionCard";
 import ShareButtons from "./ShareButtons";
 import { useGameSounds } from "../hooks/useGameSounds";
 import confetti from "canvas-confetti";
-import GameOver from "./GameOver";
 
 const MAX_QUESTIONS = 5;
 const TIME_LIMIT = 15;
@@ -26,6 +25,8 @@ interface GameScreenProps {
   onLogout: () => Promise<void>;
 }
 
+const categories = ["General", "Science", "Geography", "History", "Art", "Music"];
+
 const GameScreen: React.FC<GameScreenProps> = ({ user, onLogout }) => {
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
   const [loading, setLoading] = useState(true);
@@ -34,9 +35,11 @@ const GameScreen: React.FC<GameScreenProps> = ({ user, onLogout }) => {
   const [gameOver, setGameOver] = useState(false);
   const [answeredCorrectly, setAnsweredCorrectly] = useState<boolean | null>(null);
   const [timeLeft, setTimeLeft] = useState(TIME_LIMIT);
-  const [musicPlaying, setMusicPlaying] = useState(true);
+  const [highScore, setHighScore] = useState<number>(() => Number(localStorage.getItem("highScore")) || 0);
+  const [category, setCategory] = useState<string | null>(null);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+
   const {
     playClickSound,
     playCorrectSound,
@@ -45,18 +48,19 @@ const GameScreen: React.FC<GameScreenProps> = ({ user, onLogout }) => {
     playErrorSound,
     playConfettiSound,
     playBackgroundMusic,
-    pauseBackgroundMusic,
+    stopBackgroundMusic,
   } = useGameSounds();
 
   const fetchQuestion = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("questions")
-        .select("*")
-        .order("id", { ascending: false })
-        .limit(1)
-        .single();
+      let query = supabase.from("questions").select("*").order("id", { ascending: false });
+
+      if (category) {
+        query = query.eq("category", category);
+      }
+
+      const { data, error } = await query.limit(1).single();
 
       if (error) throw error;
       setCurrentQuestion(data);
@@ -69,36 +73,37 @@ const GameScreen: React.FC<GameScreenProps> = ({ user, onLogout }) => {
   };
 
   useEffect(() => {
-    playBackgroundMusic();
-    return pauseBackgroundMusic;
-  }, []);
-
-  useEffect(() => {
-    if (!gameOver) {
+    if (!gameOver && category) {
       fetchQuestion();
     }
-  }, [questionCount]);
+  }, [questionCount, category]);
 
   useEffect(() => {
-    if (!loading && currentQuestion && !gameOver) {
+    if (!loading && !gameOver && currentQuestion) {
       setTimeLeft(TIME_LIMIT);
+
       if (timerRef.current) clearInterval(timerRef.current);
 
       timerRef.current = setInterval(() => {
         setTimeLeft((prev) => {
-          if (prev <= 1) {
-            handleAnswer(false);
+          if (prev === 1) {
+            handleAnswer(false); // Auto-submit incorrect
             return TIME_LIMIT;
           }
           return prev - 1;
         });
       }, 1000);
-    }
 
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [currentQuestion]);
+      return () => {
+        if (timerRef.current) clearInterval(timerRef.current);
+      };
+    }
+  }, [currentQuestion, loading]);
+
+  useEffect(() => {
+    playBackgroundMusic();
+    return stopBackgroundMusic;
+  }, []);
 
   const handleAnswer = (isCorrect: boolean) => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -106,6 +111,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ user, onLogout }) => {
     if (isCorrect) {
       playCorrectSound();
       setScore((prev) => prev + 1);
+      confetti();
     } else {
       playWrongSound();
     }
@@ -115,10 +121,11 @@ const GameScreen: React.FC<GameScreenProps> = ({ user, onLogout }) => {
     setTimeout(() => {
       setAnsweredCorrectly(null);
       if (questionCount + 1 >= MAX_QUESTIONS) {
+        const finalScore = isCorrect ? score + 1 : score;
         setGameOver(true);
-        if (score + (isCorrect ? 1 : 0) >= MAX_QUESTIONS * 0.7) {
-          confetti({ spread: 100, particleCount: 150 });
-          playConfettiSound();
+        if (finalScore > highScore) {
+          setHighScore(finalScore);
+          localStorage.setItem("highScore", String(finalScore));
         }
       } else {
         setQuestionCount((prev) => prev + 1);
@@ -130,16 +137,16 @@ const GameScreen: React.FC<GameScreenProps> = ({ user, onLogout }) => {
     setScore(0);
     setQuestionCount(0);
     setGameOver(false);
+    setTimeLeft(TIME_LIMIT);
+    setAnsweredCorrectly(null);
     fetchQuestion();
   };
 
-  const toggleMusic = () => {
-    if (musicPlaying) {
-      pauseBackgroundMusic();
-    } else {
-      playBackgroundMusic();
-    }
-    setMusicPlaying(!musicPlaying);
+  const handleSelectCategory = (selected: string) => {
+    setCategory(selected);
+    setScore(0);
+    setQuestionCount(0);
+    setGameOver(false);
   };
 
   return (
@@ -156,28 +163,30 @@ const GameScreen: React.FC<GameScreenProps> = ({ user, onLogout }) => {
               Logout
             </button>
             <VolumeControl />
-            <button
-              onClick={toggleMusic}
-              className="ml-2 text-xs bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded"
-            >
-              {musicPlaying ? "Pause Music" : "Play Music"}
-            </button>
           </div>
         </div>
 
-        <div className="flex justify-between items-center mb-4 text-sm text-gray-300 px-2">
-          <span>Score: <strong>{score}</strong></span>
-          <span>Question {questionCount + 1} / {MAX_QUESTIONS}</span>
-          <span>Time Left: <strong>{timeLeft}s</strong></span>
-        </div>
-
-        {gameOver ? (
-          <div className="text-center py-20">
+        {!category ? (
+          <div className="text-center mt-12">
+            <h3 className="text-xl mb-4">Choose a Category</h3>
+            <div className="flex flex-wrap justify-center gap-4">
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => handleSelectCategory(cat)}
+                  className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-lg font-medium"
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : gameOver ? (
+          <div className="text-center py-16">
             <h3 className="text-2xl font-semibold mb-4">🎉 Game Over!</h3>
-            <p className="text-gray-400 mb-4">
-              Your score: <strong>{score} / {MAX_QUESTIONS}</strong>
-            </p>
-            <ShareButtons score={score} />
+            <p className="text-gray-400 mb-2">Score: <strong>{score} / {MAX_QUESTIONS}</strong></p>
+            <p className="text-gray-400 mb-6">High Score: <strong>{highScore}</strong></p>
+            <ShareButtons message={`I scored ${score}/${MAX_QUESTIONS} in Transit Trivia! Can you beat me?`} />
             <button
               onClick={handleRestart}
               className="mt-6 bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg font-medium"
@@ -190,22 +199,30 @@ const GameScreen: React.FC<GameScreenProps> = ({ user, onLogout }) => {
             <Spinner size="lg" />
           </div>
         ) : (
-          <QuestionCard
-            question={currentQuestion.question}
-            correct={currentQuestion.correct}
-            incorrectAnswers={[
-              currentQuestion.incorrect_1,
-              currentQuestion.incorrect_2,
-              currentQuestion.incorrect_3,
-            ].filter(Boolean)}
-            onAnswer={handleAnswer}
-            playClickSound={playClickSound}
-            playHoverSound={playHoverSound}
-            answeredCorrectly={answeredCorrectly}
-            timeLeft={timeLeft}
-            totalTime={TIME_LIMIT}
-            playConfettiSound={playConfettiSound}
-          />
+          <>
+            <div className="flex justify-between items-center mb-4 text-sm text-gray-300 px-2">
+              <span>Score: <strong>{score}</strong></span>
+              <span>Question {questionCount + 1} / {MAX_QUESTIONS}</span>
+              <span>Time Left: <strong>{timeLeft}s</strong></span>
+            </div>
+
+            <QuestionCard
+              question={currentQuestion.question}
+              correct={currentQuestion.correct}
+              incorrectAnswers={[
+                currentQuestion.incorrect_1,
+                currentQuestion.incorrect_2,
+                currentQuestion.incorrect_3,
+              ].filter(Boolean)}
+              onAnswer={handleAnswer}
+              playClickSound={playClickSound}
+              playHoverSound={playHoverSound}
+              answeredCorrectly={answeredCorrectly}
+              timeLeft={timeLeft}
+              totalTime={TIME_LIMIT}
+              playConfettiSound={playConfettiSound}
+            />
+          </>
         )}
       </div>
     </div>

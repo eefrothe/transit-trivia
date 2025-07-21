@@ -1,57 +1,43 @@
+// src/components/VolumeControl.tsx
 import React, { useState, useEffect } from "react";
-import { setGlobalVolume, useGameSounds } from "../hooks/useGameSounds";
-import { SpeakerWaveIcon, SpeakerXMarkIcon } from "@heroicons/react/24/outline";
+import { setGlobalVolume } from "../hooks/useGameSounds";
+import {
+  SpeakerWaveIcon,
+  SpeakerXMarkIcon,
+  MusicalNoteIcon,
+  NoSymbolIcon,
+} from "@heroicons/react/24/outline";
 
-const VolumeControl: React.FC = () => {
+interface Props {
+  isMusicPlaying: boolean;
+  onToggleMusic: () => void;
+}
+
+const VolumeControl: React.FC<Props> = ({ isMusicPlaying, onToggleMusic }) => {
   const [volume, setVolume] = useState(0.5);
   const [muted, setMuted] = useState(false);
-  const { bgMusicRef } = useGameSounds();
 
   useEffect(() => {
-    // Set initial volume on mount
     setGlobalVolume(volume);
-    if (bgMusicRef?.current) {
-      bgMusicRef.current.volume = volume;
-    }
-  }, []);
+  }, [volume]);
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newVolume = parseFloat(e.target.value);
     setVolume(newVolume);
     setMuted(newVolume === 0);
-    setGlobalVolume(newVolume);
-
-    if (bgMusicRef?.current) {
-      bgMusicRef.current.volume = newVolume;
-      if (newVolume > 0 && bgMusicRef.current.paused) {
-        bgMusicRef.current.play().catch(() => {
-          // ignore autoplay issues
-        });
-      }
-    }
   };
 
   const toggleMute = () => {
     const newMuted = !muted;
-    setMuted(newMuted);
     const newVolume = newMuted ? 0 : 0.5;
+    setMuted(newMuted);
     setVolume(newVolume);
     setGlobalVolume(newVolume);
-
-    if (bgMusicRef?.current) {
-      bgMusicRef.current.volume = newVolume;
-      if (newMuted) {
-        bgMusicRef.current.pause();
-      } else {
-        bgMusicRef.current.play().catch(() => {
-          // ignore autoplay issues
-        });
-      }
-    }
   };
 
   return (
-    <div className="bg-slate-900 p-2 rounded-lg flex items-center gap-2 shadow-md">
+    <div className="flex gap-3 items-center bg-slate-900 p-2 rounded-lg shadow-md">
+      {/* Volume toggle */}
       <button onClick={toggleMute} className="text-white">
         {muted || volume === 0 ? (
           <SpeakerXMarkIcon className="h-5 w-5" />
@@ -59,6 +45,7 @@ const VolumeControl: React.FC = () => {
           <SpeakerWaveIcon className="h-5 w-5" />
         )}
       </button>
+
       <input
         type="range"
         min={0}
@@ -68,6 +55,15 @@ const VolumeControl: React.FC = () => {
         onChange={handleVolumeChange}
         className="w-24"
       />
+
+      {/* Music toggle */}
+      <button onClick={onToggleMusic} className="text-white">
+        {isMusicPlaying ? (
+          <MusicalNoteIcon className="h-5 w-5" />
+        ) : (
+          <NoSymbolIcon className="h-5 w-5" />
+        )}
+      </button>
     </div>
   );
 };

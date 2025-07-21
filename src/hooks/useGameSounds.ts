@@ -1,4 +1,11 @@
-import { useRef, useEffect } from "react";
+// src/hooks/useGameSounds.ts
+import { useRef } from "react";
+
+let globalVolume = 0.5;
+
+export const setGlobalVolume = (volume: number) => {
+  globalVolume = Math.min(Math.max(volume, 0), 1);
+};
 
 export function useGameSounds() {
   const clickSound = useRef(new Audio("/sounds/click.wav"));
@@ -9,51 +16,27 @@ export function useGameSounds() {
   const confettiSound = useRef(new Audio("/sounds/confetti.wav"));
   const bgMusic = useRef(new Audio("/sounds/bg-music.wav"));
 
-  const bgMusicStarted = useRef(false);
-  const globalVolume = useRef(0.5);
-
-  // Fade in music over 2 seconds
-  const fadeInMusic = () => {
-    const audio = bgMusic.current;
-    if (!audio || bgMusicStarted.current) return;
-
-    bgMusicStarted.current = true;
-    audio.loop = true;
-    audio.volume = 0;
-    audio.play().catch((err) => {
-      console.warn("Autoplay blocked:", err);
-    });
-
-    const targetVolume = globalVolume.current;
-    let volume = 0;
-    const step = 0.05;
-    const interval = setInterval(() => {
-      volume += step;
-      if (volume >= targetVolume) {
-        audio.volume = targetVolume;
-        clearInterval(interval);
-      } else {
-        audio.volume = volume;
-      }
-    }, 100);
-  };
-
-  const setGlobalVolume = (volume: number) => {
-    const clamped = Math.min(Math.max(volume, 0), 1);
-    globalVolume.current = clamped;
-
-    bgMusic.current.volume = clamped;
-  };
+  // Background music setup
+  bgMusic.current.loop = true;
+  bgMusic.current.volume = globalVolume * 0.4;
 
   const playSound = (audioRef: React.RefObject<HTMLAudioElement>) => {
     const audio = audioRef.current;
     if (audio) {
+      audio.volume = globalVolume;
       audio.currentTime = 0;
-      audio.volume = globalVolume.current;
-      audio.play().catch((err) => {
-        console.warn("Audio play blocked:", err);
-      });
+      audio.play().catch((err) => console.warn("Audio blocked:", err));
     }
+  };
+
+  const playBackgroundMusic = () => {
+    const audio = bgMusic.current;
+    audio.volume = globalVolume * 0.4;
+    audio.play().catch((err) => console.warn("BG music blocked:", err));
+  };
+
+  const pauseBackgroundMusic = () => {
+    bgMusic.current.pause();
   };
 
   return {
@@ -63,7 +46,8 @@ export function useGameSounds() {
     playHoverSound: () => playSound(hoverSound),
     playErrorSound: () => playSound(errorSound),
     playConfettiSound: () => playSound(confettiSound),
-    playBackgroundMusic: fadeInMusic,
+    playBackgroundMusic,
+    pauseBackgroundMusic,
     setGlobalVolume,
   };
 }
