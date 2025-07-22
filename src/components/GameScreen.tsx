@@ -1,17 +1,21 @@
-import React, { useEffect, useState, useRef } from "react";
-import { supabase } from "../lib/supabaseClient";
-import Spinner from "./Spinner";
-import VolumeControl from "./VolumeControl";
+import React, { useEffect, useState, useCallback } from "react";
 import QuestionCard from "./QuestionCard";
-import ShareButtons from "./ShareButtons";
-import { useGameSounds } from "../hooks/useGameSounds";
-import confetti from "canvas-confetti";
+import GameOverScreen from "./GameOverScreen";
+import { supabase } from "../lib/supabaseClient";
+import { User } from "@supabase/supabase-js";
+import useGameSounds from "../hooks/useGameSounds";
+import Confetti from "react-confetti";
+import { Link } from "react-router-dom";
+import ProgressBar from "./ProgressBar";
+import { Cog6ToothIcon } from "@heroicons/react/24/outline";
 
-const MAX_QUESTIONS = 5;
-const TIME_LIMIT = 15;
+interface GameScreenProps {
+  user: User;
+  onLogout: () => void;
+}
 
 interface Question {
-  id: string;
+  id: number;
   question: string;
   correct: string;
   incorrect_1: string;
@@ -20,211 +24,127 @@ interface Question {
   category?: string;
 }
 
-interface GameScreenProps {
-  user: any;
-  onLogout: () => Promise<void>;
-}
-
-const categories = ["General", "Science", "Geography", "History", "Art", "Music"];
+const TOTAL_QUESTIONS = 10;
 
 const GameScreen: React.FC<GameScreenProps> = ({ user, onLogout }) => {
-  const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [score, setScore] = useState(0);
-  const [questionCount, setQuestionCount] = useState(0);
+  const [showConfetti, setShowConfetti] = useState(false);
   const [gameOver, setGameOver] = useState(false);
-  const [answeredCorrectly, setAnsweredCorrectly] = useState<boolean | null>(null);
-  const [timeLeft, setTimeLeft] = useState(TIME_LIMIT);
-  const [highScore, setHighScore] = useState<number>(() => Number(localStorage.getItem("highScore")) || 0);
-  const [category, setCategory] = useState<string | null>(null);
-
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   const {
-    playClickSound,
     playCorrectSound,
     playWrongSound,
-    playHoverSound,
-    playErrorSound,
     playConfettiSound,
     playBackgroundMusic,
     stopBackgroundMusic,
   } = useGameSounds();
 
-  const fetchQuestion = async () => {
-    setLoading(true);
-    try {
-      let query = supabase.from("questions").select("*").order("id", { ascending: false });
+  const fetchQuestions = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("questions")
+      .select("*")
+      .order("id", { ascending: true })
+      .limit(TOTAL_QUESTIONS);
 
-      if (category) {
-        query = query.eq("category", category);
-      }
-
-      const { data, error } = await query.limit(1).single();
-
-      if (error) throw error;
-      setCurrentQuestion(data);
-    } catch (error) {
-      console.error("Error fetching question:", error);
-      playErrorSound();
-    } finally {
-      setLoading(false);
+    if (error) {
+      console.error("Error fetching questions:", error.message);
+      return;
     }
-  };
+
+    setQuestions(data || []);
+    setCurrentIndex(0);
+    setScore(0);
+    setGameOver(false);
+  }, []);
 
   useEffect(() => {
-    if (!gameOver && category) {
-      fetchQuestion();
-    }
-  }, [questionCount, category]);
-
-  useEffect(() => {
-    if (!loading && !gameOver && currentQuestion) {
-      setTimeLeft(TIME_LIMIT);
-
-      if (timerRef.current) clearInterval(timerRef.current);
-
-      timerRef.current = setInterval(() => {
-        setTimeLeft((prev) => {
-          if (prev === 1) {
-            handleAnswer(false); // Auto-submit incorrect
-            return TIME_LIMIT;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-
-      return () => {
-        if (timerRef.current) clearInterval(timerRef.current);
-      };
-    }
-  }, [currentQuestion, loading]);
-
-  useEffect(() => {
+    fetchQuestions();
     playBackgroundMusic();
     return stopBackgroundMusic;
   }, []);
 
   const handleAnswer = (isCorrect: boolean) => {
-    if (timerRef.current) clearInterval(timerRef.current);
-
     if (isCorrect) {
-      playCorrectSound();
       setScore((prev) => prev + 1);
-      confetti();
+      playCorrectSound();
     } else {
       playWrongSound();
     }
 
-    setAnsweredCorrectly(isCorrect);
-
-    setTimeout(() => {
-      setAnsweredCorrectly(null);
-      if (questionCount + 1 >= MAX_QUESTIONS) {
-        const finalScore = isCorrect ? score + 1 : score;
-        setGameOver(true);
-        if (finalScore > highScore) {
-          setHighScore(finalScore);
-          localStorage.setItem("highScore", String(finalScore));
-        }
-      } else {
-        setQuestionCount((prev) => prev + 1);
+    if (currentIndex + 1 >= TOTAL_QUESTIONS) {
+      setGameOver(true);
+      if (score + (isCorrect ? 1 : 0) === TOTAL_QUESTIONS) {
+        setShowConfetti(true);
+        playConfettiSound();
       }
-    }, 1200);
+    } else {
+      setTimeout(() => {
+        setCurrentIndex((prev) => prev + 1);
+      }, 600);
+    }
   };
 
   const handleRestart = () => {
-    setScore(0);
-    setQuestionCount(0);
-    setGameOver(false);
-    setTimeLeft(TIME_LIMIT);
-    setAnsweredCorrectly(null);
-    fetchQuestion();
+    fetchQuestions();
+    setShowConfetti(false);
   };
 
-  const handleSelectCategory = (selected: string) => {
-    setCategory(selected);
-    setScore(0);
-    setQuestionCount(0);
-    setGameOver(false);
-  };
+  if (gameOver) {
+    return (
+      <>
+        {showConfetti && <Confetti />}
+        <GameOverScreen score={score} maxScore={TOTAL_QUESTIONS} onRestart={handleRestart} />
+      </>
+    );
+  }
+
+  const currentQuestion = questions[currentIndex];
 
   return (
-    <div className="flex flex-col min-h-screen items-center justify-start p-6 bg-slate-950 text-white">
-      <div className="w-full max-w-2xl mt-8 animate-fade-in">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-bold tracking-tight">Transit Trivia</h2>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-300">{user?.email}</span>
-            <button
-              onClick={onLogout}
-              className="bg-red-600 hover:bg-red-500 text-white py-1 px-3 rounded-lg text-sm font-medium"
-            >
-              Logout
-            </button>
-            <VolumeControl />
-          </div>
-        </div>
+    <div className="min-h-screen flex flex-col justify-center items-center p-4 text-white">
+      {/* Top Controls */}
+      <div className="absolute top-4 left-4 z-50 flex gap-2">
+        <button
+          onClick={onLogout}
+          className="bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded text-sm"
+        >
+          Logout
+        </button>
 
-        {!category ? (
-          <div className="text-center mt-12">
-            <h3 className="text-xl mb-4">Choose a Category</h3>
-            <div className="flex flex-wrap justify-center gap-4">
-              {categories.map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => handleSelectCategory(cat)}
-                  className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-lg font-medium"
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : gameOver ? (
-          <div className="text-center py-16">
-            <h3 className="text-2xl font-semibold mb-4">🎉 Game Over!</h3>
-            <p className="text-gray-400 mb-2">Score: <strong>{score} / {MAX_QUESTIONS}</strong></p>
-            <p className="text-gray-400 mb-6">High Score: <strong>{highScore}</strong></p>
-            <ShareButtons message={`I scored ${score}/${MAX_QUESTIONS} in Transit Trivia! Can you beat me?`} />
-            <button
-              onClick={handleRestart}
-              className="mt-6 bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg font-medium"
-            >
-              Play Again
-            </button>
-          </div>
-        ) : loading || !currentQuestion ? (
-          <div className="flex justify-center py-12">
-            <Spinner size="lg" />
-          </div>
-        ) : (
-          <>
-            <div className="flex justify-between items-center mb-4 text-sm text-gray-300 px-2">
-              <span>Score: <strong>{score}</strong></span>
-              <span>Question {questionCount + 1} / {MAX_QUESTIONS}</span>
-              <span>Time Left: <strong>{timeLeft}s</strong></span>
-            </div>
+        <Link
+          to="/settings"
+          className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1 rounded text-sm hidden sm:inline"
+        >
+          ⚙️ Settings
+        </Link>
 
-            <QuestionCard
-              question={currentQuestion.question}
-              correct={currentQuestion.correct}
-              incorrectAnswers={[
-                currentQuestion.incorrect_1,
-                currentQuestion.incorrect_2,
-                currentQuestion.incorrect_3,
-              ].filter(Boolean)}
-              onAnswer={handleAnswer}
-              playClickSound={playClickSound}
-              playHoverSound={playHoverSound}
-              answeredCorrectly={answeredCorrectly}
-              timeLeft={timeLeft}
-              totalTime={TIME_LIMIT}
-              playConfettiSound={playConfettiSound}
-            />
-          </>
-        )}
+        <Link
+          to="/settings"
+          className="bg-slate-700 hover:bg-slate-600 text-white p-2 rounded sm:hidden"
+        >
+          <Cog6ToothIcon className="w-5 h-5" />
+        </Link>
       </div>
+
+      {/* Progress */}
+      <div className="absolute top-4 right-4 z-50 w-40">
+        <ProgressBar value={(currentIndex / TOTAL_QUESTIONS) * 100} />
+      </div>
+
+      {/* Question */}
+      {currentQuestion ? (
+        <>
+          <h2 className="text-xl font-semibold mb-2 fade-in">
+            Question {currentIndex + 1} / {TOTAL_QUESTIONS}
+          </h2>
+          <QuestionCard question={currentQuestion} onAnswer={handleAnswer} />
+          <p className="mt-6 text-lg font-bold">Score: {score}</p>
+        </>
+      ) : (
+        <p>Loading question...</p>
+      )}
     </div>
   );
 };

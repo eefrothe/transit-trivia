@@ -1,53 +1,34 @@
-// src/hooks/useGameSounds.ts
 import { useRef } from "react";
 
-let globalVolume = 0.5;
-
-export const setGlobalVolume = (volume: number) => {
-  globalVolume = Math.min(Math.max(volume, 0), 1);
-};
-
-export function useGameSounds() {
-  const clickSound = useRef(new Audio("/sounds/click.wav"));
-  const correctSound = useRef(new Audio("/sounds/correct.wav"));
-  const wrongSound = useRef(new Audio("/sounds/wrong.wav"));
-  const hoverSound = useRef(new Audio("/sounds/hover.wav"));
-  const errorSound = useRef(new Audio("/sounds/error.wav"));
-  const confettiSound = useRef(new Audio("/sounds/confetti.wav"));
+export default function useGameSounds() {
+  const click = useRef(new Audio("/sounds/click.wav"));
+  const correct = useRef(new Audio("/sounds/correct.wav"));
+  const wrong = useRef(new Audio("/sounds/wrong.wav"));
+  const hover = useRef(new Audio("/sounds/hover.wav"));
+  const error = useRef(new Audio("/sounds/error.wav"));
+  const confetti = useRef(new Audio("/sounds/confetti.wav"));
+  const ticking = useRef(new Audio("/sounds/ticking.wav"));
   const bgMusic = useRef(new Audio("/sounds/bg-music.wav"));
 
-  // Background music setup
   bgMusic.current.loop = true;
-  bgMusic.current.volume = globalVolume * 0.4;
 
-  const playSound = (audioRef: React.RefObject<HTMLAudioElement>) => {
-    const audio = audioRef.current;
-    if (audio) {
-      audio.volume = globalVolume;
-      audio.currentTime = 0;
-      audio.play().catch((err) => console.warn("Audio blocked:", err));
+  const play = (audio: React.RefObject<HTMLAudioElement>) => {
+    const sound = audio.current;
+    if (sound) {
+      sound.currentTime = 0;
+      sound.play().catch((err) => console.warn("Audio failed:", err));
     }
   };
 
-  const playBackgroundMusic = () => {
-    const audio = bgMusic.current;
-    audio.volume = globalVolume * 0.4;
-    audio.play().catch((err) => console.warn("BG music blocked:", err));
-  };
-
-  const pauseBackgroundMusic = () => {
-    bgMusic.current.pause();
-  };
-
   return {
-    playClickSound: () => playSound(clickSound),
-    playCorrectSound: () => playSound(correctSound),
-    playWrongSound: () => playSound(wrongSound),
-    playHoverSound: () => playSound(hoverSound),
-    playErrorSound: () => playSound(errorSound),
-    playConfettiSound: () => playSound(confettiSound),
-    playBackgroundMusic,
-    pauseBackgroundMusic,
-    setGlobalVolume,
+    playClickSound: () => play(click),
+    playCorrectSound: () => play(correct),
+    playWrongSound: () => play(wrong),
+    playHoverSound: () => play(hover),
+    playErrorSound: () => play(error),
+    playConfettiSound: () => play(confetti),
+    playTickingSound: () => play(ticking),
+    playBackgroundMusic: () => bgMusic.current?.play().catch(() => {}),
+    pauseBackgroundMusic: () => bgMusic.current?.pause(),
   };
 }
