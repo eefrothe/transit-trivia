@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Player, TriviaQuestion } from '../types';
 import { generateNewQuestion } from '../services/geminiService';
-import Spinner from './Spinner';
-import { XIcon } from './icons';
+import Spinner from '../components/Spinner';
+import { XIcon } from '../components/icons';
 
 interface SuddenDeathScreenProps {
   players: Player[];

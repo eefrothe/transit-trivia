@@ -1,5 +1,6 @@
 import React from 'react';
-import { TrainIcon } from './icons';
+import { TrainIcon } from '../components/icons';
+import TopBar from "../components/shared/TopBar";
 
 interface Location {
   emoji: string;

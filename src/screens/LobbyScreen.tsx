@@ -1,8 +1,8 @@
 import React from 'react';
 import { Player, AllPlayerStats } from '../types';
-import PlayerAvatar from './PlayerAvatar';
-import Spinner from './Spinner';
-import { ShareIcon, BrainIcon } from './icons';
+import PlayerAvatar from '../components/shared/PlayerAvatar';
+import Spinner from '../components/Spinner';
+import { ShareIcon, BrainIcon } from '../components/icons';
 import { APP_URL } from '../constants';
 
 interface LobbyScreenProps {

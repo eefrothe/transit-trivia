@@ -1,5 +1,5 @@
 import React from 'react';
-import { HintIcon, SkipIcon, DoublePointsIcon, FreezeIcon } from './icons';
+import { HintIcon, SkipIcon, DoublePointsIcon, FreezeIcon } from '../icons';
 
 type PowerUpType = 'hint' | 'skip' | 'double' | 'freeze';
 

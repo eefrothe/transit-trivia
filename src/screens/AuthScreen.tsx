@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import Spinner from "./Spinner";
+import Spinner from "../components/Spinner";
 
 function AuthScreen() {
   const [email, setEmail] = useState("");

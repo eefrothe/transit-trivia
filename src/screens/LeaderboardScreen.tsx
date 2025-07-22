@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getLeaderboard } from '../services/leaderboardService';
+import TopBar from "../components/shared/TopBar";
 
 type LeaderboardEntry = {
   username: string;

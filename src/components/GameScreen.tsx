@@ -1,37 +1,28 @@
 import React, { useEffect, useState, useCallback } from "react";
-import QuestionCard from "./QuestionCard";
-import GameOverScreen from "./GameOverScreen";
-import { supabase } from "../lib/supabaseClient";
 import { User } from "@supabase/supabase-js";
-import useGameSounds from "../hooks/useGameSounds";
-import Confetti from "react-confetti";
 import { Link } from "react-router-dom";
-import ProgressBar from "./ProgressBar";
-import { Cog6ToothIcon } from "@heroicons/react/24/outline";
+import Confetti from "react-confetti";
+
+import QuestionCard from "./QuestionCard";
+import GameOverScreen from "../components/GameOverScreen";
+import useGameSounds from "../hooks/useGameSounds";
+import ProgressBar from "../components/ProgressBar";
+import TopBar from "./shared/TopBar";
+import fetchQuestions from "../lib/fetchQuestions";
 
 interface GameScreenProps {
   user: User;
   onLogout: () => void;
 }
 
-interface Question {
-  id: number;
-  question: string;
-  correct: string;
-  incorrect_1: string;
-  incorrect_2: string;
-  incorrect_3?: string;
-  category?: string;
-}
-
 const TOTAL_QUESTIONS = 10;
 
 const GameScreen: React.FC<GameScreenProps> = ({ user, onLogout }) => {
-  const [questions, setQuestions] = useState<Question[]>([]);
+  const [questions, setQuestions] = useState<any[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [score, setScore] = useState(0);
-  const [showConfetti, setShowConfetti] = useState(false);
   const [gameOver, setGameOver] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
 
   const {
     playCorrectSound,
@@ -41,18 +32,8 @@ const GameScreen: React.FC<GameScreenProps> = ({ user, onLogout }) => {
     stopBackgroundMusic,
   } = useGameSounds();
 
-  const fetchQuestions = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("questions")
-      .select("*")
-      .order("id", { ascending: true })
-      .limit(TOTAL_QUESTIONS);
-
-    if (error) {
-      console.error("Error fetching questions:", error.message);
-      return;
-    }
-
+  const loadQuestions = useCallback(async () => {
+    const data = await fetchQuestions(TOTAL_QUESTIONS);
     setQuestions(data || []);
     setCurrentIndex(0);
     setScore(0);
@@ -60,7 +41,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ user, onLogout }) => {
   }, []);
 
   useEffect(() => {
-    fetchQuestions();
+    loadQuestions();
     playBackgroundMusic();
     return stopBackgroundMusic;
   }, []);
@@ -73,7 +54,9 @@ const GameScreen: React.FC<GameScreenProps> = ({ user, onLogout }) => {
       playWrongSound();
     }
 
-    if (currentIndex + 1 >= TOTAL_QUESTIONS) {
+    const nextIndex = currentIndex + 1;
+
+    if (nextIndex >= TOTAL_QUESTIONS) {
       setGameOver(true);
       if (score + (isCorrect ? 1 : 0) === TOTAL_QUESTIONS) {
         setShowConfetti(true);
@@ -81,15 +64,17 @@ const GameScreen: React.FC<GameScreenProps> = ({ user, onLogout }) => {
       }
     } else {
       setTimeout(() => {
-        setCurrentIndex((prev) => prev + 1);
+        setCurrentIndex(nextIndex);
       }, 600);
     }
   };
 
   const handleRestart = () => {
-    fetchQuestions();
+    loadQuestions();
     setShowConfetti(false);
   };
+
+  const currentQuestion = questions[currentIndex];
 
   if (gameOver) {
     return (
@@ -100,40 +85,14 @@ const GameScreen: React.FC<GameScreenProps> = ({ user, onLogout }) => {
     );
   }
 
-  const currentQuestion = questions[currentIndex];
-
   return (
     <div className="min-h-screen flex flex-col justify-center items-center p-4 text-white">
-      {/* Top Controls */}
-      <div className="absolute top-4 left-4 z-50 flex gap-2">
-        <button
-          onClick={onLogout}
-          className="bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded text-sm"
-        >
-          Logout
-        </button>
+      <TopBar onLogout={onLogout}>
+        <div className="w-40 ml-auto">
+          <ProgressBar value={(currentIndex / TOTAL_QUESTIONS) * 100} />
+        </div>
+      </TopBar>
 
-        <Link
-          to="/settings"
-          className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1 rounded text-sm hidden sm:inline"
-        >
-          ⚙️ Settings
-        </Link>
-
-        <Link
-          to="/settings"
-          className="bg-slate-700 hover:bg-slate-600 text-white p-2 rounded sm:hidden"
-        >
-          <Cog6ToothIcon className="w-5 h-5" />
-        </Link>
-      </div>
-
-      {/* Progress */}
-      <div className="absolute top-4 right-4 z-50 w-40">
-        <ProgressBar value={(currentIndex / TOTAL_QUESTIONS) * 100} />
-      </div>
-
-      {/* Question */}
       {currentQuestion ? (
         <>
           <h2 className="text-xl font-semibold mb-2 fade-in">

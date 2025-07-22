@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Player, AllPlayerStats } from '../types';
-import PlayerAvatar from './PlayerAvatar';
-import { CrownIcon, ShareIcon } from './icons';
+import PlayerAvatar from '../components/shared/PlayerAvatar';
+import { CrownIcon, ShareIcon } from '../components/icons';
 import { APP_URL } from '../constants';
 
 interface ScoreScreenProps {

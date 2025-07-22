@@ -1,6 +1,6 @@
 // src/components/VictoryScreen.tsx
 import React, { useEffect, useState } from "react";
-import AnimatedCounter from "./AnimatedCounter";
+import AnimatedCounter from "../components/shared/AnimatedCounter";
 import { ShareIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
 
 interface VictoryScreenProps {

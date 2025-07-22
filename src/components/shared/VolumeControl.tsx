@@ -1,6 +1,6 @@
 // src/components/VolumeControl.tsx
 import React, { useState, useEffect } from "react";
-import { setGlobalVolume } from "../hooks/useGameSounds";
+import { setGlobalVolume } from "../../hooks/useGameSounds";
 import {
   SpeakerWaveIcon,
   SpeakerXMarkIcon,

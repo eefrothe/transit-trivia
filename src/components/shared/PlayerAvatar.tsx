@@ -1,6 +1,6 @@
 import React from 'react';
-import { Player, PlayerStats } from '../types';
-import { CrownIcon } from './icons';
+import { Player, PlayerStats } from '../../types';
+import { CrownIcon } from '../icons';
 
 interface PlayerAvatarProps {
   player: Player;
